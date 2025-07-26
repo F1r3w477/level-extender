@@ -1,0 +1,48 @@
+# Stardew Valley Modding .gitignore
+
+## User-specific files
+*.user
+*.userosscache
+*.suo
+.vs/
+
+## VS Code specific
+.vscode/*
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+## Build artifacts
+[Bb]in/
+[Oo]bj/
+
+## NuGet Packages
+packages/
+*.nupkg
+# Exclude packages directory, but commit the packages.config file
+!packages/repositories.config
+
+## SMAPI Mod specific output
+# Ignore the release zip file created by ModBuildConfig
+*.zip
+
+# Ignore a local "Mods" folder if you deploy there for testing
+Mods/
+
+## Rider & JetBrains specific
+.idea/
+*.sln.DotSettings.user
+
+## Operating System files
+# Windows
+Thumbs.db
+ehthumbs.db
+[Dd]esktop.ini
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+.Trash-*
