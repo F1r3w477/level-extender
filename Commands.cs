@@ -1,5 +1,6 @@
 using StardewModdingAPI;
 using System.Linq;
+using StardewValley;
 
 namespace LevelExtender
 {
@@ -128,7 +129,7 @@ namespace LevelExtender
             if (!bool.TryParse(arg2[0], out bool val))
                 return;
 
-            ModEntry.config.drawBars = val;
+            this.modEntry.config.drawBars = val;
             this.Monitor.Log($"You successfully set draw XP bars to {val}.");
         }
 
@@ -137,7 +138,7 @@ namespace LevelExtender
             if (!bool.TryParse(arg2[0], out bool val))
                 return;
 
-            ModEntry.config.drawExtraItemNotifications = val;
+            this.modEntry.config.drawExtraItemNotifications = val;
             this.Monitor.Log($"You successfully set draw extra item notifications to {val}.");
         }
 
@@ -146,7 +147,7 @@ namespace LevelExtender
             if (!int.TryParse(arg2[0], out int val))
                 return;
 
-            ModEntry.config.minItemPriceForNotifications = val;
+            this.modEntry.config.minItemPriceForNotifications = val;
             this.Monitor.Log($"You successfully set the minimum price threshold for extra item notifications to {val}.");
         }
     }

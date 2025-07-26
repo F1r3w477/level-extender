@@ -19,11 +19,11 @@ namespace LevelExtender
 {
     public class ModEntry : Mod
     {
-        public static Mod instance;
+        public static ModEntry instance; // Corrected to ModEntry type
         private static System.Timers.Timer aTimer;
         bool firstFade = false;
-        public static ModData config = new ModData();
-        public static Random rand = new Random(Guid.NewGuid().GetHashCode());
+        public ModData config = new ModData();
+        public Random rand = new Random(Guid.NewGuid().GetHashCode());
         internal bool wm = false; // internal so Commands.cs can access it
 
         float oStamina = 0.0f;
@@ -48,16 +48,16 @@ namespace LevelExtender
 
         List<XPBar> xpBars = new List<XPBar>();
 
-        public static List<string> snames = new List<string>();
+        public List<string> snames = new List<string>();
 
         Harmony harmony;
 
-        public static List<Monster> monsters = new List<Monster>();
+        public List<Monster> monsters = new List<Monster>();
 
         public List<Skill> skills = new List<Skill>();
-        public static List<int[]> categories = new List<int[]>();
+        public List<int[]> categories = new List<int[]>();
         
-        public static List<int> skillLevs = new List<int>();
+        public List<int> skillLevs = new List<int>();
 
         public ModEntry()
         {
@@ -77,7 +77,7 @@ namespace LevelExtender
 
         public override void Entry(IModHelper helper)
         {
-            Initialize(instance.Monitor);
+            // The old Initialize() call is removed
 
             this.harmony = new Harmony(this.ModManifest.UniqueID);
 
@@ -133,10 +133,10 @@ namespace LevelExtender
 
             foreach (NPC npc in e.Removed)
             {
-                if (npc is Monster monster && monsters.Contains(monster) && monster.Health <= 0)
+                if (npc is Monster monster && this.monsters.Contains(monster) && monster.Health <= 0)
                 {
                     Game1.player.gainExperience(Farmer.combatSkill, monster.ExperienceGained);
-                    monsters.Remove(monster); // Clean up monster list
+                    this.monsters.Remove(monster); // Clean up monster list
                 }
             }
         }
@@ -153,7 +153,7 @@ namespace LevelExtender
                         string[] fields = pair.Value.Split('/');
                         if (int.TryParse(fields[1], out int val))
                         {
-                            int x = Math.Max(val - rand.Next(0, (int)(Game1.player.fishingLevel.Value / 4)), val / 2);
+                            int x = Math.Max(val - this.rand.Next(0, (int)(Game1.player.fishingLevel.Value / 4)), val / 2);
                             fields[1] = x.ToString();
                             data[pair.Key] = string.Join("/", fields);
                         }
@@ -174,7 +174,7 @@ namespace LevelExtender
                 int tstack = item.Stack;
                 int i = 0;
 
-                foreach (int[] cats in categories)
+                foreach (int[] cats in instance.categories)
                 {
                     if (cats.Contains(cat) && ShouldDup(i))
                     {
@@ -183,14 +183,14 @@ namespace LevelExtender
                         {
                             item.Stack += 1;
                         }
-                        if (config.drawExtraItemNotifications)
-                            str = $"Your {snames[i]} level allowed you to obtain {item.Stack - tstack} extra {item.DisplayName}!";
+                        if (instance.config.drawExtraItemNotifications)
+                            str = $"Your {instance.snames[i]} level allowed you to obtain {item.Stack - tstack} extra {item.DisplayName}!";
                         break;
                     }
                     i++;
                 }
 
-                if (str.Length > 0 && item.salePrice() >= config.minItemPriceForNotifications)
+                if (str.Length > 0 && item.salePrice() >= instance.config.minItemPriceForNotifications)
                 {
                     Game1.addHUDMessage(new HUDMessage(str, 2));
                 }
@@ -214,17 +214,17 @@ namespace LevelExtender
             if (otime == default(DateTime))
                 otime = DateTime.Now;
 
-            if (xpBars.Count > 0)
+            if (this.xpBars.Count > 0)
             {
-                for (int i = 0; i < xpBars.Count; i++)
+                for (int i = 0; i < this.xpBars.Count; i++)
                 {
                     try
                     {
                         float bscale = 1.0f;
-                        if (xpBars[i] == null)
+                        if (this.xpBars[i] == null)
                             continue;
 
-                        Skill skill = xpBars[i].skill;
+                        Skill skill = this.xpBars[i].skill;
                         string name = String.Join(" ", skill.name.ToCharArray());
 
                         int startX = 8;
@@ -236,7 +236,7 @@ namespace LevelExtender
                         int xpc = skill.xpc;
                         int lev = skill.level;
                         int startXP = skill.getReqXP(lev - 1);
-                        double deltaTime = DateTime.Now.Subtract(xpBars[i].time).TotalMilliseconds;
+                        double deltaTime = DateTime.Now.Subtract(this.xpBars[i].time).TotalMilliseconds;
                         float transp;
 
                         if (deltaTime >= 0 && deltaTime <= 1000)
@@ -267,24 +267,24 @@ namespace LevelExtender
                         int bar2w = (int)Math.Round(xpc * mod) + 1;
                         int bar1w = (int)Math.Round(curXP * mod) - bar2w;
 
-                        if (i == 0 && xpBars[i].ych < 0)
+                        if (i == 0 && this.xpBars[i].ych < 0)
                         {
                             double ms = (DateTime.Now - otime).TotalMilliseconds;
-                            double addv = (xpBars[i].ych + (ms / 15.625 * bscale));
-                            xpBars[i].ych = (addv >= 0 ? 0 : addv);
+                            double addv = (this.xpBars[i].ych + (ms / 15.625 * bscale));
+                            this.xpBars[i].ych = (addv >= 0 ? 0 : addv);
                         }
                         else if (i == 0 && deltaTime >= 4000)
                         {
                             double addv = (deltaTime - 4000) / 15.625 * bscale;
-                            xpBars[i].ych = (addv >= 64 ? 64 : addv);
+                            this.xpBars[i].ych = (addv >= 64 ? 64 : addv);
                         }
 
-                        if (xpBars.Count > 0 && i > 0)
+                        if (this.xpBars.Count > 0 && i > 0)
                         {
-                            xpBars[i].ych = xpBars[0].ych;
+                            this.xpBars[i].ych = this.xpBars[0].ych;
                         }
                         
-                        if (config.drawBars)
+                        if (this.config.drawBars)
                         {
                             Vector2 r1d = new Vector2((float)Math.Round(214 * bscale), (float)Math.Round(64 * bscale));
                             Vector2 r2d = new Vector2((float)Math.Round(210 * bscale), (float)Math.Round(60 * bscale));
@@ -292,31 +292,31 @@ namespace LevelExtender
                             Vector2 r4d = new Vector2(bar1w, (float)Math.Round(18 * bscale));
                             Vector2 r5d = new Vector2(bar2w, (float)Math.Round(18 * bscale));
 
-                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX - 7, startY + (barSep * i) - 7 - xpBars[i].ychi, (int)r1d.X, (int)r1d.Y), Color.DarkRed * transp);
-                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX - 5, startY + (barSep * i) - 5 - xpBars[i].ychi, (int)r2d.X, (int)r2d.Y), new Color(210, 173, 85) * transp);
+                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX - 7, startY + (barSep * i) - 7 - this.xpBars[i].ychi, (int)r1d.X, (int)r1d.Y), Color.DarkRed * transp);
+                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX - 5, startY + (barSep * i) - 5 - this.xpBars[i].ychi, (int)r2d.X, (int)r2d.Y), new Color(210, 173, 85) * transp);
 
-                            Game1.spriteBatch.DrawString(Game1.dialogueFont, $"{name}", new Vector2((int)Math.Round(((startX - 7 + r1d.X) / 2.0) - (Game1.dialogueFont.MeasureString(name).X * (Game1.pixelZoom / 6.0f / 2.0f) * bscale)), (startY - 3 + (barSep * i) - xpBars[i].ychi) * bscale), new Color(30, 3, 0) * (transp * 1.1f), 0.0f, Vector2.Zero, (float)(Game1.pixelZoom / 6f * bscale), SpriteEffects.None, 0.5f);
-                            Game1.spriteBatch.DrawString(Game1.dialogueFont, $"{name}", new Vector2((int)Math.Round(((startX - 7 + r1d.X) / 2.0) - (Game1.dialogueFont.MeasureString(name).X * (Game1.pixelZoom / 6.0f / 2.0f) * bscale)) + 1, (startY - 3 + (barSep * i) - xpBars[i].ychi + 1) * bscale), new Color(90, 35, 0) * (transp), 0.0f, Vector2.Zero, (float)(Game1.pixelZoom / 6.0f * bscale), SpriteEffects.None, 0.5f);
+                            Game1.spriteBatch.DrawString(Game1.dialogueFont, $"{name}", new Vector2((int)Math.Round(((startX - 7 + r1d.X) / 2.0) - (Game1.dialogueFont.MeasureString(name).X * (Game1.pixelZoom / 6.0f / 2.0f) * bscale)), (startY - 3 + (barSep * i) - this.xpBars[i].ychi) * bscale), new Color(30, 3, 0) * (transp * 1.1f), 0.0f, Vector2.Zero, (float)(Game1.pixelZoom / 6f * bscale), SpriteEffects.None, 0.5f);
+                            Game1.spriteBatch.DrawString(Game1.dialogueFont, $"{name}", new Vector2((int)Math.Round(((startX - 7 + r1d.X) / 2.0) - (Game1.dialogueFont.MeasureString(name).X * (Game1.pixelZoom / 6.0f / 2.0f) * bscale)) + 1, (startY - 3 + (barSep * i) - this.xpBars[i].ychi + 1) * bscale), new Color(90, 35, 0) * (transp), 0.0f, Vector2.Zero, (float)(Game1.pixelZoom / 6.0f * bscale), SpriteEffects.None, 0.5f);
 
-                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX, startY + (barSep * i) + sep - xpBars[i].ychi, (int)r3d.X, (int)r3d.Y), Color.Black * transp);
-                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX + 1, startY + (barSep * i) + sep + 1 - xpBars[i].ychi, bar1w, (int)r4d.Y), Color.SeaGreen * transp);
-                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX + 1 + bar1w, startY + (barSep * i) + sep + 1 - xpBars[i].ychi, bar2w, (int)r5d.Y), Color.Turquoise * transp);
+                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX, startY + (barSep * i) + sep - this.xpBars[i].ychi, (int)r3d.X, (int)r3d.Y), Color.Black * transp);
+                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX + 1, startY + (barSep * i) + sep + 1 - this.xpBars[i].ychi, bar1w, (int)r4d.Y), Color.SeaGreen * transp);
+                            Game1.spriteBatch.Draw(Game1.staminaRect, new Rectangle(startX + 1 + bar1w, startY + (barSep * i) + sep + 1 - this.xpBars[i].ychi, bar2w, (int)r5d.Y), Color.Turquoise * transp);
 
                             Vector2 mPos = new Vector2(Game1.getMouseX(), Game1.getMouseY());
-                            Vector2 bCenter = new Vector2(startX + (200 / 2), startY + (barSep * i) + sep + (20 / 2) - xpBars[i].ychi);
+                            Vector2 bCenter = new Vector2(startX + (200 / 2), startY + (barSep * i) + sep + (20 / 2) - this.xpBars[i].ychi);
                             float dist = Vector2.Distance(mPos, bCenter);
 
                             if (dist <= 250f)
                             {
                                 float f = Math.Min(25f / dist, 1.0f);
                                 string xpt = $"{curXP} / {maxXP}";
-                                Game1.spriteBatch.DrawString(Game1.dialogueFont, xpt, new Vector2((int)Math.Round(((startX + 200) / 2.0) - (Game1.dialogueFont.MeasureString(xpt).X * (Game1.pixelZoom / 10.0f / 2.0f))), startY + (barSep * i) + sep + 1 - xpBars[i].ychi), Color.White * f * (transp + 0.05f), 0.0f, Vector2.Zero, (Game1.pixelZoom / 10f), SpriteEffects.None, 0.5f);
+                                Game1.spriteBatch.DrawString(Game1.dialogueFont, xpt, new Vector2((int)Math.Round(((startX + 200) / 2.0) - (Game1.dialogueFont.MeasureString(xpt).X * (Game1.pixelZoom / 10.0f / 2.0f))), startY + (barSep * i) + sep + 1 - this.xpBars[i].ychi), Color.White * f * (transp + 0.05f), 0.0f, Vector2.Zero, (Game1.pixelZoom / 10f), SpriteEffects.None, 0.5f);
                             }
                         }
                     }
                     catch (Exception ex)
                     {
-                        Monitor.Log($"Non-Serious draw violation: {ex.Message}");
+                        this.Monitor.Log($"Non-Serious draw violation: {ex.Message}");
                         continue;
                     }
                 }
@@ -324,8 +324,6 @@ namespace LevelExtender
             otime = DateTime.Now;
         }
         
-        private new static IMonitor Monitor;
-        public static void Initialize(IMonitor monitor) { Monitor = monitor; }
         private void ControlEvent_KeyReleased(object sender, ButtonReleasedEventArgs e) { if (!Context.IsWorldReady) return; }
         private void GameEvents_FirstUpdateTick(object sender, EventArgs e) { }
 
@@ -358,13 +356,13 @@ namespace LevelExtender
 
         public void EndXPBar(int key)
         {
-            var bar = xpBars.SingleOrDefault(x => x.skill.key == key);
+            var bar = this.xpBars.SingleOrDefault(x => x.skill.key == key);
             if (bar != null)
             {
-                xpBars.Remove(bar);
-                if (xpBars.Count > 0)
+                this.xpBars.Remove(bar);
+                if (this.xpBars.Count > 0)
                 {
-                    xpBars[0].ych = 0;
+                    this.xpBars[0].ych = 0;
                 }
             }
         }
@@ -373,8 +371,8 @@ namespace LevelExtender
 
         private void OnXPChanged(object sender, EXPEventArgs e)
         {
-            XPBar bar = xpBars.SingleOrDefault(b => b.skill.key == e.key);
-            Skill skill = skills.SingleOrDefault(sk => sk.key == e.key);
+            XPBar bar = this.xpBars.SingleOrDefault(b => b.skill.key == e.key);
+            Skill skill = this.skills.SingleOrDefault(sk => sk.key == e.key);
 
             if (skill == null || skill.xpc < 0 || skill.xpc > 100001 || (shouldDraw != null && shouldDraw.Enabled))
                 return;
@@ -390,12 +388,12 @@ namespace LevelExtender
             }
             else
             {
-                xpBars.Add(new XPBar(skill));
+                this.xpBars.Add(new XPBar(skill));
             }
         }
 
-        public void sortByTime() { xpBars = xpBars.OrderBy(o => o.time).ToList(); }
-        public void setYchVals(double val) { foreach (var bar in xpBars) { bar.ych = val; } }
+        public void sortByTime() { this.xpBars = this.xpBars.OrderBy(o => o.time).ToList(); }
+        public void setYchVals(double val) { foreach (var bar in this.xpBars) { bar.ych = val; } }
         
         private void Display_MenuChanged(object sender, MenuChangedEventArgs e) { if (!Context.IsWorldReady || e.OldMenu == null) return; }
         public void Closing() { }
@@ -409,26 +407,26 @@ namespace LevelExtender
 
             if (e.IsMultipleOf(3600))
             {
-                monsters.RemoveAll(mon => mon == null || mon.Health <= 0 || mon.currentLocation == null);
+                this.monsters.RemoveAll(mon => mon == null || mon.Health <= 0 || mon.currentLocation == null);
             }
 
             if (e.IsMultipleOf(1800))
             {
-                for (int i = 0; i < skillLevs.Count; i++)
+                for (int i = 0; i < this.skillLevs.Count; i++)
                 {
-                    skillLevs[i] = skills[i].level;
+                    this.skillLevs[i] = this.skills[i].level;
                 }
             }
 
-            if (skills.Count > 4)
+            if (this.skills.Count > 4)
             {
                 for (int i = 0; i < 5; i++)
                 {
-                    Skill skill = skills.SingleOrDefault(sk => sk.key == i);
+                    Skill skill = this.skills.SingleOrDefault(sk => sk.key == i);
                     if (skill == null)
                     {
-                        if (snames.Count > i)
-                            Monitor.Log($"LE ERROR - Skill {snames[i]} not registered properly for exp gain, please restart and/or report if no change.");
+                        if (this.snames.Count > i)
+                            this.Monitor.Log($"LE ERROR - Skill {this.snames[i]} not registered properly for exp gain, please restart and/or report if no change.");
                     }
                     else if (skill.xp != Game1.player.experiencePoints[i])
                     {
@@ -437,7 +435,7 @@ namespace LevelExtender
                 }
             }
 
-            if (!no_mons && wm && Game1.player.currentLocation.IsOutdoors && Game1.activeClickableMenu == null && rand.NextDouble() <= S_R())
+            if (!no_mons && wm && Game1.player.currentLocation.IsOutdoors && Game1.activeClickableMenu == null && this.rand.NextDouble() <= S_R())
             {
                 Vector2 loc = Game1.player.currentLocation.getRandomTile();
                 while (!(Game1.player.currentLocation.isTilePlaceable(loc)))
@@ -445,19 +443,19 @@ namespace LevelExtender
                     loc = Game1.player.currentLocation.getRandomTile();
                 }
 
-                int tier = rand.Next(0, 9);
+                int tier = this.rand.Next(0, 9);
                 Monster m = GetMonster(tier, loc * (float)Game1.tileSize);
                 if (tier == 8)
                 {
                     tier = 5;
                     m.resilience.Value += 20;
-                    m.Slipperiness += rand.Next(10) + 5;
-                    m.startGlowing(new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)), true, 1.0f);
-                    m.Health *= 1 + (rand.Next(Game1.player.CombatLevel / 2, Game1.player.CombatLevel));
+                    m.Slipperiness += this.rand.Next(10) + 5;
+                    m.startGlowing(new Color(this.rand.Next(0, 255), this.rand.Next(0, 255), this.rand.Next(0, 255)), true, 1.0f);
+                    m.Health *= 1 + (this.rand.Next(Game1.player.CombatLevel / 2, Game1.player.CombatLevel));
                     var data = Game1.content.Load<Dictionary<string, string>>("Data/ObjectInformation");
-                    m.objectsToDrop.Add(data.Keys.ElementAt(rand.Next(data.Count)));
+                    m.objectsToDrop.Add(data.Keys.ElementAt(this.rand.Next(data.Count)));
                     m.displayName += ": LE BOSS";
-                    m.Scale = m.Scale * (float)(1 + (rand.NextDouble() * Game1.player.CombatLevel / 25.0));
+                    m.Scale = m.Scale * (float)(1 + (this.rand.NextDouble() * Game1.player.CombatLevel / 25.0));
                 }
                 else
                 {
@@ -468,7 +466,7 @@ namespace LevelExtender
                 m.Health *= 1 + (Game1.player.CombatLevel / 4);
                 m.focusedOnFarmers = true;
                 m.wildernessFarmMonster = true;
-                m.Speed += rand.Next((int)Math.Round((Game1.player.combatLevel.Value / 10.0)));
+                m.Speed += this.rand.Next((int)Math.Round((Game1.player.combatLevel.Value / 10.0)));
                 m.resilience.Value = m.resilience.Value + (Game1.player.combatLevel.Value / 10);
                 m.ExperienceGained += (int)(m.Health / 100.0) + ((10 + (Game1.player.combatLevel.Value * 2)) * tier);
 
@@ -477,7 +475,7 @@ namespace LevelExtender
 
                 if (tier == 5)
                     Game1.chatBox.addMessage($"A boss has spawned in your current location!", Color.DarkRed);
-                monsters.Add(m);
+                this.monsters.Add(m);
             }
         }
 
@@ -532,14 +530,14 @@ namespace LevelExtender
                     {
                         if (beginnersRod) bobberBarSize = 80 + (5 * 9);
                         else if (Game1.player.FishingLevel < 11) bobberBarSize = 80 + bobberBonus + (int)(Game1.player.FishingLevel * 9);
-                        else bobberBarSize = 165 + bobberBonus + (int)(Game1.player.FishingLevel * (0.5 + (rand.NextDouble() / 2.0)));
+                        else bobberBarSize = 165 + bobberBonus + (int)(Game1.player.FishingLevel * (0.5 + (this.rand.NextDouble() / 2.0)));
                     }
                     else
                     {
                         if (beginnersRod) bobberBarSize = 80 + (5 * 7);
                         else if (Game1.player.FishingLevel < 11) bobberBarSize = 80 + bobberBonus + (int)(Game1.player.FishingLevel * 7);
                         else if (Game1.player.FishingLevel > 10 && Game1.player.FishingLevel < 20) bobberBarSize = 150 + bobberBonus + (int)(Game1.player.FishingLevel);
-                        else bobberBarSize = 170 + bobberBonus + (int)(Game1.player.FishingLevel * 0.8 * (0.5 + (rand.NextDouble() / 2.0)));
+                        else bobberBarSize = 170 + bobberBonus + (int)(Game1.player.FishingLevel * 0.8 * (0.5 + (this.rand.NextDouble() / 2.0)));
                     }
 
                     firstFade = true;
@@ -568,7 +566,7 @@ namespace LevelExtender
             if (index == 0 || index == 2)
                 drate = 0.002 / 2.0;
 
-            if (skillLevs.Count > index && rand.NextDouble() <= (skillLevs[index] * drate))
+            if (instance.skillLevs.Count > index && instance.rand.NextDouble() <= (instance.skillLevs[index] * drate))
             {
                 return true;
             }
@@ -579,7 +577,7 @@ namespace LevelExtender
         {
             if (Context.IsSplitScreen)
             {
-                Monitor.Log("LE: Splitscreen Multiplayer is not currently supported. Mod will not load.");
+                this.Monitor.Log("LE: Splitscreen Multiplayer is not currently supported. Mod will not load.");
                 return;
             }
 
@@ -588,11 +586,11 @@ namespace LevelExtender
             double pchance = Game1.player.farmingLevel.Value * 0.001;
             foreach (Vector2 key in farm.terrainFeatures.Keys)
             {
-                if (farm.terrainFeatures[key] is HoeDirt tf && tf.crop != null && rand.NextDouble() < gchance)
+                if (farm.terrainFeatures[key] is HoeDirt tf && tf.crop != null && this.rand.NextDouble() < gchance)
                 {
                     tf.crop.growCompletely();
                 }
-                else if (farm.terrainFeatures[key] is HoeDirt tf2 && tf2.crop != null && rand.NextDouble() < pchance)
+                else if (farm.terrainFeatures[key] is HoeDirt tf2 && tf2.crop != null && this.rand.NextDouble() < pchance)
                 {
                     tf2.crop.currentPhase.Value = Math.Min(tf2.crop.currentPhase.Value + 1, tf2.crop.phaseDays.Count - 1);
                 }
@@ -622,7 +620,7 @@ namespace LevelExtender
                 location.characters.RemoveWhere(c => c.IsMonster);
                 x += (y - location.characters.Count);
             }
-            Monitor.Log($"Removed | {x} | / | {total_m} | monsters.");
+            this.Monitor.Log($"Removed | {x} | / | {total_m} | monsters.");
             total_m = 0;
         }
 
@@ -640,7 +638,7 @@ namespace LevelExtender
                 case 6: m = new RockGolem(loc); break;
                 case 7: m = new ShadowBrute(loc); break;
                 case 8:
-                    int y = rand.Next(1, 6);
+                    int y = this.rand.Next(1, 6);
                     if (y == 1) m = new RockCrab(loc, "Iridium Crab");
                     else if (y == 2) m = new Ghost(loc, "Carbon Ghost");
                     else if (y == 3) m = new RockCrab(loc, "Lava Crab");
@@ -648,7 +646,7 @@ namespace LevelExtender
                     else if (y == 5) m = new BigSlime(loc, Math.Max(Game1.player.combatLevel.Value * 5, 50));
                     else m = new Mummy(loc);
                     break;
-                default: m = new GreenSlime(loc); break; // Default to a basic monster
+                default: m = new GreenSlime(loc); break;
             }
             return m;
         }
@@ -660,7 +658,7 @@ namespace LevelExtender
             SetTimer(2000, 2);
             try
             {
-                Monitor.Log("Starting skill load for LE");
+                this.Monitor.Log("Starting skill load for LE");
                 var config_t = this.Helper.Data.ReadJsonFile<ModData>($"data/{Constants.SaveFolderName}.json") ?? new ModData();
 
                 string[] sdnames = { "Farming", "Fishing", "Foraging", "Mining", "Combat" };
@@ -676,47 +674,46 @@ namespace LevelExtender
                 {
                     foreach (string str in config_t.skills)
                     {
-                        Monitor.Log($"skill load - {str}");
+                        this.Monitor.Log($"skill load - {str}");
                         string[] vals = str.Split(',');
                         Skill sk = new Skill(LE, vals[0], int.Parse(vals[1]), double.Parse(vals[2]), new List<int>(defReqXPs), cats[count]);
-                        skills.Add(sk);
-                        snames.Add(sk.name);
-                        categories.Add(sk.cats);
-                        skillLevs.Add(sk.level);
+                        this.skills.Add(sk);
+                        this.snames.Add(sk.name);
+                        this.categories.Add(sk.cats);
+                        this.skillLevs.Add(sk.level);
                         count++;
                     }
                 }
-
-
+                
                 for (int i = count; i < 5; i++)
                 {
-                    Monitor.Log($"adding skills - {i}, dxp: {Game1.player.experiencePoints[i]}");
+                    this.Monitor.Log($"adding skills - {i}, dxp: {Game1.player.experiencePoints[i]}");
                     Skill sk = new Skill(LE, sdnames[i], Game1.player.experiencePoints[i], 1.0, new List<int>(defReqXPs), cats[i]);
-                    skills.Add(sk);
-                    snames.Add(sk.name);
-                    categories.Add(sk.cats);
-                    skillLevs.Add(sk.level);
+                    this.skills.Add(sk);
+                    this.snames.Add(sk.name);
+                    this.categories.Add(sk.cats);
+                    this.skillLevs.Add(sk.level);
                 }
 
-                wm = config_t.WorldMonsters;
-                config = config_t;
+                this.wm = config_t.WorldMonsters;
+                this.config = config_t;
             }
             catch (Exception ex)
             {
-                Monitor.Log($"LE failed loading skills, mod will not start: {ex.Message}", LogLevel.Trace);
+                this.Monitor.Log($"LE failed loading skills, mod will not start: {ex.Message}", LogLevel.Trace);
             }
             this.Helper.GameContent.InvalidateCache("Data/Fish");
         }
 
         private void SaveEvents_BeforeSave(object sender, SavingEventArgs e)
         {
-            config.skills = new List<string>();
-            foreach (Skill skill in skills)
+            this.config.skills = new List<string>();
+            foreach (Skill skill in this.skills)
             {
-                config.skills.Add($"{skill.name},{skill.xp},{skill.xp_mod}");
+                this.config.skills.Add($"{skill.name},{skill.xp},{skill.xp_mod}");
             }
-            config.WorldMonsters = wm;
-            this.Helper.Data.WriteJsonFile<ModData>($"data/{Constants.SaveFolderName}.json", config);
+            this.config.WorldMonsters = this.wm;
+            this.Helper.Data.WriteJsonFile<ModData>($"data/{Constants.SaveFolderName}.json", this.config);
 
             if (!no_mons)
             {
@@ -726,14 +723,14 @@ namespace LevelExtender
 
         private void SaveEvents_AfterReturnToTitle(object sender, ReturnedToTitleEventArgs e)
         {
-            wm = new bool();
-            firstFade = false;
-            config = new ModData();
+            this.wm = false;
+            this.firstFade = false;
+            this.config = new ModData();
 
-            skills = new List<Skill>();
-            snames = new List<string>();
-            categories = new List<int[]>();
-            skillLevs = new List<int>();
+            this.skills = new List<Skill>();
+            this.snames = new List<string>();
+            this.categories = new List<int[]>();
+            this.skillLevs = new List<int>();
         }
 
         private void OnTimedEvent(object source, ElapsedEventArgs e) { this.Closing(); }
@@ -747,7 +744,7 @@ namespace LevelExtender
             string arg3 = "";
             if (args.Length > 3) arg3 = args[3].ToLower();
 
-            Skill s = skills.SingleOrDefault(sk => sk.name.ToLower() == arg1);
+            Skill s = this.skills.SingleOrDefault(sk => sk.name.ToLower() == arg1);
             if (s == null) return -2;
 
             if (arg0 == "get")
@@ -770,7 +767,7 @@ namespace LevelExtender
         {
             Skill sk = new Skill(LE, name, xp, xp_mod, xp_table, cats);
             if (sk == null) return -1;
-            skills.Add(sk);
+            this.skills.Add(sk);
             return 0;
         }
     }
