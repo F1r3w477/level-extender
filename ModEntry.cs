@@ -24,7 +24,7 @@ namespace LevelExtender
         bool firstFade = false;
         public static ModData config = new ModData();
         public static Random rand = new Random(Guid.NewGuid().GetHashCode());
-        bool wm = false;
+        internal bool wm = false; // internal so Commands.cs can access it
 
         float oStamina = 0.0f;
         public bool initialtooluse = false;
@@ -38,7 +38,7 @@ namespace LevelExtender
         public ModEntry LE;
 
         private int total_m;
-        private double s_mod;
+        internal double s_mod; // internal so Commands.cs can access it
 
         public MPModApi mpmod;
         private bool mpload;
@@ -108,16 +108,20 @@ namespace LevelExtender
             helper.Events.Content.AssetRequested += this.OnAssetRequested;
             helper.Events.World.NpcListChanged += this.OnNpcListChanged;
 
-            helper.ConsoleCommands.Add("xp", "Displays the xp table for your current skill levels.", this.XPT);
-            helper.ConsoleCommands.Add("lev", "Sets the player's level: lev <skill name> <number>", this.SetLev);
-            helper.ConsoleCommands.Add("wm_toggle", "Toggles monster spawning: wm_toggle", this.WmT);
-            helper.ConsoleCommands.Add("xp_m", "Changes the xp modifier for a given skill: xp_m <skill name> <decimal 0.0 -> ANY>: 1.0 is default. Must restart game to take effect", this.XpM);
-            helper.ConsoleCommands.Add("spawn_modifier", "Forcefully changes monster spawn rate to specified decimal value: spawn_modifier <decimal(percent)> : -1.0 to not have any effect.", this.SM);
-            helper.ConsoleCommands.Add("xp_table", "Displays the XP table for a given skill: xp_table <skill name>", this.TellXP);
-            helper.ConsoleCommands.Add("set_xp", "Sets your current XP for a given skill: set_xp <skill name> <XP: int 0 -> ANY>", this.SetXP);
-            helper.ConsoleCommands.Add("draw_bars", "Sets whether the XP bars should be drawn or not: draw_bars <bool>, Default; true.", this.DrawBars);
-            helper.ConsoleCommands.Add("draw_ein", "Sets whether the extra item notifications should be drawn or not: draw_ein <bool>, Default; true.", this.DrawEIN);
-            helper.ConsoleCommands.Add("min_ein_price", "Sets the minimum price threshold for extra item notifications: min_ein_price <int>, Default; 50", this.MinEINP);
+            // Create an instance of our new Commands class
+            var commands = new Commands(this);
+
+            // Register commands from the new class
+            helper.ConsoleCommands.Add("xp", "Displays the xp table for your current skill levels.", commands.XPT);
+            helper.ConsoleCommands.Add("lev", "Sets the player's level: lev <skill name> <number>", commands.SetLev);
+            helper.ConsoleCommands.Add("wm_toggle", "Toggles monster spawning: wm_toggle", commands.WmT);
+            helper.ConsoleCommands.Add("xp_m", "Changes the xp modifier for a given skill: xp_m <skill name> <decimal 0.0 -> ANY>: 1.0 is default. Must restart game to take effect", commands.XpM);
+            helper.ConsoleCommands.Add("spawn_modifier", "Forcefully changes monster spawn rate to specified decimal value: spawn_modifier <decimal(percent)> : -1.0 to not have any effect.", commands.SM);
+            helper.ConsoleCommands.Add("xp_table", "Displays the XP table for a given skill: xp_table <skill name>", commands.TellXP);
+            helper.ConsoleCommands.Add("set_xp", "Sets your current XP for a given skill: set_xp <skill name> <XP: int 0 -> ANY>", commands.SetXP);
+            helper.ConsoleCommands.Add("draw_bars", "Sets whether the XP bars should be drawn or not: draw_bars <bool>, Default; true.", commands.DrawBars);
+            helper.ConsoleCommands.Add("draw_ein", "Sets whether the extra item notifications should be drawn or not: draw_ein <bool>, Default; true.", commands.DrawEIN);
+            helper.ConsoleCommands.Add("min_ein_price", "Sets the minimum price threshold for extra item notifications: min_ein_price <int>, Default; 50", commands.MinEINP);
 
             LEE.OnXPChanged += this.OnXPChanged;
         }
@@ -157,34 +161,7 @@ namespace LevelExtender
                 });
             }
         }
-
-        private void MinEINP(string arg1, string[] arg2)
-        {
-            if (!int.TryParse(arg2[0], out int val))
-                return;
-
-            config.minItemPriceForNotifications = val;
-            Monitor.Log($"You successfully set the minimum price threshold for extra item notifications to {val}.");
-        }
-
-        private void DrawEIN(string arg1, string[] arg2)
-        {
-            if (!bool.TryParse(arg2[0], out bool val))
-                return;
-
-            config.drawExtraItemNotifications = val;
-            Monitor.Log($"You successfully set draw extra item notifications to {val}.");
-        }
-
-        private void DrawBars(string arg1, string[] arg2)
-        {
-            if (!bool.TryParse(arg2[0], out bool val))
-                return;
-
-            config.drawBars = val;
-            Monitor.Log($"You successfully set draw XP bars to {val}.");
-        }
-
+        
         public static void AITI2(ref Item item, bool makeActiveObject)
         {
             try
@@ -306,8 +283,7 @@ namespace LevelExtender
                         {
                             xpBars[i].ych = xpBars[0].ych;
                         }
-
-
+                        
                         if (config.drawBars)
                         {
                             Vector2 r1d = new Vector2((float)Math.Round(214 * bscale), (float)Math.Round(64 * bscale));
@@ -347,29 +323,7 @@ namespace LevelExtender
             }
             otime = DateTime.Now;
         }
-
-        private void SetXP(string command, string[] arg)
-        {
-            if (!Context.IsWorldReady || arg.Length < 2 || !int.TryParse(arg[1], out int xp))
-            {
-                Monitor.Log("No skill name entered or the xp was not a whole number.");
-                return;
-            }
-
-            Skill skill = skills.SingleOrDefault(sk => sk.name.ToLower() == arg[0].ToLower());
-
-            if (skill == null)
-            {
-                Monitor.Log($"Invalid skill name: {arg[0]}");
-                return;
-            }
-
-            if (skill.key < 5)
-                Game1.player.experiencePoints[skill.key] = xp;
-            else
-                skill.xp = xp;
-        }
-
+        
         private new static IMonitor Monitor;
         public static void Initialize(IMonitor monitor) { Monitor = monitor; }
         private void ControlEvent_KeyReleased(object sender, ButtonReleasedEventArgs e) { if (!Context.IsWorldReady) return; }
@@ -416,26 +370,6 @@ namespace LevelExtender
         }
 
         private void OnTimedEvent2(object sender, ElapsedEventArgs e) { if (mpmod != null) mpMult = mpmod.Exp_Rate(); aTimer2.Enabled = false; }
-        private void XPT(string arg1, string[] arg2)
-        {
-            Monitor.Log("Skill:  | Level:  |  Current Experience:  | Experience Needed:", LogLevel.Info);
-            for (int i = 0; i < skills.Count; i++)
-            {
-                int xpn = skills[i].getReqXP(skills[i].level);
-                Monitor.Log($"{skills[i].name} | {skills[i].level} | {skills[i].xp} | {xpn}", LogLevel.Info);
-            }
-        }
-
-        private void SM(string command, string[] args)
-        {
-            if (args.Length < 1 || args[0] == null || !double.TryParse(args[0], out double n))
-            {
-                Monitor.Log("No decimal value found.");
-                return;
-            }
-            s_mod = n;
-            Monitor.Log($"Modifier set to {n * 100}%.");
-        }
 
         private void OnXPChanged(object sender, EXPEventArgs e)
         {
@@ -462,73 +396,7 @@ namespace LevelExtender
 
         public void sortByTime() { xpBars = xpBars.OrderBy(o => o.time).ToList(); }
         public void setYchVals(double val) { foreach (var bar in xpBars) { bar.ych = val; } }
-        private void TellXP(string command, string[] args)
-        {
-            if (args.Length < 1)
-                return;
-
-            Skill skill = skills.SingleOrDefault(sk => sk.name.ToLower() == args[0].ToLower());
-            if (skill == null)
-            {
-                Monitor.Log("Could not find a match for given skill name.");
-                return;
-            }
-
-            string str = $"{skill.name}: ";
-            int count = 0;
-            foreach (int xp in skill.xp_table)
-            {
-                str += $"{count} -> {xp}, ";
-                count++;
-                if (count % 5 == 0)
-                    str += "\n";
-            }
-            Monitor.Log(str);
-        }
-
-        private void SetLev(string command, string[] args)
-        {
-            if (args.Length < 2 || args[0] == null || args[1] == null || !int.TryParse(args[1], out int n))
-            {
-                Monitor.Log($"Function Failed!");
-                return;
-            }
-            if (n < 0 || n > 100)
-            {
-                Monitor.Log($"Function Failed!");
-                return;
-            }
-            Skill skill = skills.SingleOrDefault(sk => sk.name.ToLower() == args[0].ToLower());
-            if (skill == null)
-                return;
-
-            skill.level = n;
-            if (skill.key == 1)
-                this.Helper.GameContent.InvalidateCache("Data/Fish");
-        }
-
-        private void WmT(string command, string[] args)
-        {
-            wm = !wm;
-            Monitor.Log($"Overworld Monster Spawning -> {(wm ? "ON" : "OFF")}.");
-        }
-
-        private void XpM(string command, string[] args)
-        {
-            if (args.Length > 1 && double.TryParse(args[1], out double x) && x > 0.0)
-            {
-                Skill skill = skills.SingleOrDefault(sk => sk.name.ToLower() == args[0].ToLower());
-                if (skill == null)
-                    return;
-                skill.xp_mod = x;
-                Monitor.Log($"The XP modifier for {skill.name} was set to: {x}");
-            }
-            else
-            {
-                Monitor.Log($"Valid decimal not used; refer to help command.");
-            }
-        }
-
+        
         private void Display_MenuChanged(object sender, MenuChangedEventArgs e) { if (!Context.IsWorldReady || e.OldMenu == null) return; }
         public void Closing() { }
         public List<int> defReqXPs = new List<int> { 100, 380, 770, 1300, 2150, 3300, 4800, 6900, 10000, 15000 };
@@ -559,9 +427,10 @@ namespace LevelExtender
                     Skill skill = skills.SingleOrDefault(sk => sk.key == i);
                     if (skill == null)
                     {
-                        Monitor.Log($"LE ERROR - Skill {snames[i]} not registered properly for exp gain, please restart and/or report if no change.");
+                        if (snames.Count > i)
+                            Monitor.Log($"LE ERROR - Skill {snames[i]} not registered properly for exp gain, please restart and/or report if no change.");
                     }
-                    if (skill.xp != Game1.player.experiencePoints[i])
+                    else if (skill.xp != Game1.player.experiencePoints[i])
                     {
                         skill.xp = Game1.player.experiencePoints[i];
                     }
@@ -585,8 +454,8 @@ namespace LevelExtender
                     m.Slipperiness += rand.Next(10) + 5;
                     m.startGlowing(new Color(rand.Next(0, 255), rand.Next(0, 255), rand.Next(0, 255)), true, 1.0f);
                     m.Health *= 1 + (rand.Next(Game1.player.CombatLevel / 2, Game1.player.CombatLevel));
-                    var data = Game1.content.Load<Dictionary<int, string>>("Data\\ObjectInformation");
-                    m.objectsToDrop.Add(rand.Next(data.Count).ToString());
+                    var data = Game1.content.Load<Dictionary<string, string>>("Data/ObjectInformation");
+                    m.objectsToDrop.Add(data.Keys.ElementAt(rand.Next(data.Count)));
                     m.displayName += ": LE BOSS";
                     m.Scale = m.Scale * (float)(1 + (rand.NextDouble() * Game1.player.CombatLevel / 25.0));
                 }
@@ -603,7 +472,7 @@ namespace LevelExtender
                 m.resilience.Value = m.resilience.Value + (Game1.player.combatLevel.Value / 10);
                 m.ExperienceGained += (int)(m.Health / 100.0) + ((10 + (Game1.player.combatLevel.Value * 2)) * tier);
 
-                Game1.currentLocation.characters.Add((NPC)m);
+                Game1.currentLocation.characters.Add(m);
                 total_m++;
 
                 if (tier == 5)
