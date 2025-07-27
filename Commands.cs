@@ -1,6 +1,7 @@
 using StardewModdingAPI;
 using System.Linq;
 using StardewValley;
+using System.Text;
 
 namespace LevelExtender
 {
@@ -16,139 +17,160 @@ namespace LevelExtender
 
         public void XPT(string command, string[] args)
         {
-            this.Monitor.Log("Skill:  | Level:  |  Current Experience:  | Experience Needed:", LogLevel.Info);
-            for (int i = 0; i < this.modEntry.skills.Count; i++)
+            this.Monitor.Log("Skill      | Level | Current XP   | XP for Next Lvl", LogLevel.Info);
+            this.Monitor.Log("----------------------------------------------------", LogLevel.Info);
+            foreach (var skill in this.modEntry.skills)
             {
-                int xpn = this.modEntry.skills[i].getReqXP(this.modEntry.skills[i].level);
-                this.Monitor.Log($"{this.modEntry.skills[i].name} | {this.modEntry.skills[i].level} | {this.modEntry.skills[i].xp} | {xpn}", LogLevel.Info);
+                int xpForNextLevel = skill.getReqXP(skill.level);
+                this.Monitor.Log($"{skill.name,-10} | {skill.level,-5} | {skill.xp,-12} | {xpForNextLevel}", LogLevel.Info);
             }
         }
 
         public void SetLev(string command, string[] args)
         {
-            if (args.Length < 2 || args[0] == null || args[1] == null || !int.TryParse(args[1], out int n))
+            if (args.Length < 2 || !int.TryParse(args[1], out int level) || level < 0)
             {
-                this.Monitor.Log($"Function Failed!");
+                this.Monitor.Log("Command failed. Use 'lev <skillname> <level>'. Level must be a positive number.", LogLevel.Error);
                 return;
             }
-            if (n < 0 || n > 100)
-            {
-                this.Monitor.Log($"Function Failed!");
-                return;
-            }
-            Skill skill = this.modEntry.skills.SingleOrDefault(sk => sk.name.ToLower() == args[0].ToLower());
+            
+            Skill skill = this.modEntry.skills.SingleOrDefault(sk => sk.name.Equals(args[0], System.StringComparison.OrdinalIgnoreCase));
             if (skill == null)
+            {
+                this.Monitor.Log($"Could not find a skill named '{args[0]}'.", LogLevel.Error);
                 return;
+            }
 
-            skill.level = n;
-            if (skill.key == 1)
+            skill.level = level;
+            this.Monitor.Log($"{skill.name} level set to {level}. XP adjusted accordingly.", LogLevel.Info);
+
+            // Invalidate fish data if fishing level changed, as it affects fish difficulty
+            if (skill.key == 1) 
                 this.modEntry.Helper.GameContent.InvalidateCache("Data/Fish");
         }
 
         public void WmT(string command, string[] args)
         {
             this.modEntry.wm = !this.modEntry.wm;
-            this.Monitor.Log($"Overworld Monster Spawning -> {(this.modEntry.wm ? "ON" : "OFF")}.");
+            this.Monitor.Log($"Overworld Monster Spawning -> {(this.modEntry.wm ? "ON" : "OFF")}.", LogLevel.Info);
         }
 
         public void XpM(string command, string[] args)
         {
-            if (args.Length > 1 && double.TryParse(args[1], out double x) && x > 0.0)
+            if (args.Length < 2 || !double.TryParse(args[1], out double modifier) || modifier <= 0.0)
             {
-                Skill skill = this.modEntry.skills.SingleOrDefault(sk => sk.name.ToLower() == args[0].ToLower());
-                if (skill == null)
-                    return;
-                skill.xp_mod = x;
-                this.Monitor.Log($"The XP modifier for {skill.name} was set to: {x}");
+                this.Monitor.Log("Command failed. Use 'xp_m <skillname> <modifier>'. Modifier must be a positive number.", LogLevel.Error);
+                return;
             }
-            else
+
+            Skill skill = this.modEntry.skills.SingleOrDefault(sk => sk.name.Equals(args[0], System.StringComparison.OrdinalIgnoreCase));
+            if (skill == null)
             {
-                this.Monitor.Log($"Valid decimal not used; refer to help command.");
+                this.Monitor.Log($"Could not find a skill named '{args[0]}'.", LogLevel.Error);
+                return;
             }
+            
+            skill.xp_mod = modifier;
+            this.Monitor.Log($"The XP modifier for {skill.name} was set to: {modifier}", LogLevel.Info);
         }
 
         public void SM(string command, string[] args)
         {
-            if (args.Length < 1 || args[0] == null || !double.TryParse(args[0], out double n))
+            if (args.Length < 1 || !double.TryParse(args[0], out double modifier))
             {
-                this.Monitor.Log("No decimal value found.");
+                this.Monitor.Log("Command failed. Use 'spawn_modifier <decimal_value>'.", LogLevel.Error);
                 return;
             }
-            this.modEntry.s_mod = n;
-            this.Monitor.Log($"Modifier set to {n * 100}%.");
+            this.modEntry.s_mod = modifier;
+            this.Monitor.Log($"Monster spawn rate modifier set to {modifier} ({modifier:P}).", LogLevel.Info);
         }
 
         public void TellXP(string command, string[] args)
         {
             if (args.Length < 1)
+            {
+                this.Monitor.Log("Please provide a skill name.", LogLevel.Error);
                 return;
+            }
 
-            Skill skill = this.modEntry.skills.SingleOrDefault(sk => sk.name.ToLower() == args[0].ToLower());
+            Skill skill = this.modEntry.skills.SingleOrDefault(sk => sk.name.Equals(args[0], System.StringComparison.OrdinalIgnoreCase));
             if (skill == null)
             {
-                this.Monitor.Log("Could not find a match for given skill name.");
+                this.Monitor.Log($"Could not find a skill named '{args[0]}'.", LogLevel.Error);
                 return;
             }
 
-            string str = $"{skill.name}: ";
-            int count = 0;
-            foreach (int xp in skill.xp_table)
+            var sb = new StringBuilder();
+            sb.AppendLine($"XP Table for {skill.name} (Cumulative XP required):");
+            for (int i = 0; i < skill.xp_table.Count; i++)
             {
-                str += $"{count} -> {xp}, ";
-                count++;
-                if (count % 5 == 0)
-                    str += "\n";
+                sb.Append($"Lvl {i + 1}: {skill.xp_table[i]}   ");
+                if ((i + 1) % 5 == 0)
+                    sb.AppendLine();
             }
-            this.Monitor.Log(str);
+            this.Monitor.Log(sb.ToString(), LogLevel.Info);
         }
 
-        public void SetXP(string command, string[] arg)
+        public void SetXP(string command, string[] args)
         {
-            if (!Context.IsWorldReady || arg.Length < 2 || !int.TryParse(arg[1], out int xp))
+            if (!Context.IsWorldReady)
             {
-                this.Monitor.Log("No skill name entered or the xp was not a whole number.");
+                this.Monitor.Log("This command can only be used after a save is loaded.", LogLevel.Error);
+                return;
+            }
+            
+            if (args.Length < 2 || !int.TryParse(args[1], out int xp))
+            {
+                this.Monitor.Log("Command failed. Use 'set_xp <skillname> <amount>'. XP must be a whole number.", LogLevel.Error);
                 return;
             }
 
-            Skill skill = this.modEntry.skills.SingleOrDefault(sk => sk.name.ToLower() == arg[0].ToLower());
-
+            Skill skill = this.modEntry.skills.SingleOrDefault(sk => sk.name.Equals(args[0], System.StringComparison.OrdinalIgnoreCase));
             if (skill == null)
             {
-                this.Monitor.Log($"Invalid skill name: {arg[0]}");
+                this.Monitor.Log($"Could not find a skill named '{args[0]}'.", LogLevel.Error);
                 return;
             }
 
-            if (skill.key < 5)
-                StardewValley.Game1.player.experiencePoints[skill.key] = xp;
-            else
-                skill.xp = xp;
+            // The Skill class setter handles all logic, including syncing with the vanilla game
+            skill.xp = xp;
+            this.Monitor.Log($"{skill.name} XP set to {xp}. Level has been updated.", LogLevel.Info);
         }
 
-        public void DrawBars(string arg1, string[] arg2)
+        public void DrawBars(string command, string[] args)
         {
-            if (!bool.TryParse(arg2[0], out bool val))
+            if (args.Length < 1 || !bool.TryParse(args[0], out bool val))
+            {
+                 this.Monitor.Log("Command failed. Use 'draw_bars <true|false>'.", LogLevel.Error);
                 return;
+            }
 
             this.modEntry.config.drawBars = val;
-            this.Monitor.Log($"You successfully set draw XP bars to {val}.");
+            this.Monitor.Log($"XP bars will now be {(val ? "drawn" : "hidden")}.", LogLevel.Info);
         }
 
-        public void DrawEIN(string arg1, string[] arg2)
+        public void DrawEIN(string command, string[] args)
         {
-            if (!bool.TryParse(arg2[0], out bool val))
+            if (args.Length < 1 || !bool.TryParse(args[0], out bool val))
+            {
+                this.Monitor.Log("Command failed. Use 'draw_ein <true|false>'.", LogLevel.Error);
                 return;
+            }
 
             this.modEntry.config.drawExtraItemNotifications = val;
-            this.Monitor.Log($"You successfully set draw extra item notifications to {val}.");
+            this.Monitor.Log($"Extra item notifications will now be {(val ? "shown" : "hidden")}.", LogLevel.Info);
         }
 
-        public void MinEINP(string arg1, string[] arg2)
+        public void MinEINP(string command, string[] args)
         {
-            if (!int.TryParse(arg2[0], out int val))
+            if (args.Length < 1 || !int.TryParse(args[0], out int val))
+            {
+                this.Monitor.Log("Command failed. Use 'min_ein_price <amount>'.", LogLevel.Error);
                 return;
+            }
 
             this.modEntry.config.minItemPriceForNotifications = val;
-            this.Monitor.Log($"You successfully set the minimum price threshold for extra item notifications to {val}.");
+            this.Monitor.Log($"Minimum price for extra item notifications set to {val}g.", LogLevel.Info);
         }
     }
 }
