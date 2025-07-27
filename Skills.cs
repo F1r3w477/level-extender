@@ -37,7 +37,7 @@ namespace LevelExtender
         }
         public int xpc;
         public EXPEventArgs args;
-        private ModEntry mod; // <-- Replaced the obsolete 'LE' field
+        private ModEntry mod;
         public List<int> xp_table;
         public double xp_mod;
         private int XP;
@@ -110,40 +110,63 @@ namespace LevelExtender
             return this.xp_table[lev];
         }
 
+        // REFACTORED: This method is now iterative instead of recursive for much better performance.
         public void generateTable(int lev)
         {
+            // The XP table stores cumulative XP needed. Index 0 is for level 1, index 1 for level 2, etc.
+            // If the table is empty and we have default values, use them first.
+            if (this.xp_table.Count == 0 && mod.defaultRequiredXP.Any())
+            {
+                this.xp_table.AddRange(mod.defaultRequiredXP);
+            }
+
             for (int i = this.xp_table.Count; i <= lev; i++)
             {
-                int exp = this.getXPByLev(i);
-                this.xp_table.Add(exp);
+                // To get XP for level i+1 (at index i), we need the XP for level i (at index i-1).
+                int previousXp = this.xp_table[i - 1];
+                int requiredXp;
+                int levelNum = i + 1; // The actual level number we're calculating for
+
+                if (levelNum < 45)
+                {
+                    requiredXp = previousXp + 300 + (int)Math.Round(1000 * levelNum * this.xp_mod);
+                }
+                else
+                {
+                    requiredXp = previousXp + 300 + (int)Math.Round(((double)levelNum * levelNum * levelNum * 0.5) * this.xp_mod);
+                }
+                this.xp_table.Add(requiredXp);
             }
-        }
-
-        public int getXPByLev(int i)
-        {
-            if (i <= 0) return 0;
-            if (this.xp_table.Count > i)
-                return this.xp_table[i];
-
-            if (i < 45)
-                return this.getXPByLev(i - 1) + 300 + (int)Math.Round(1000 * i * this.xp_mod);
-            else
-                return this.getXPByLev(i - 1) + 300 + (int)Math.Round(((i * i * i * 0.5)) * this.xp_mod);
         }
 
         public int getLevByXP()
         {
-            if (this.xp > this.xp_table.LastOrDefault())
-                return this.xp_table.Count - 1;
+            int requiredLevel = this.level;
+            while (true)
+            {
+                int requiredXp = getReqXP(requiredLevel);
+                if (this.xp >= requiredXp)
+                {
+                    requiredLevel++;
+                }
+                else
+                {
+                    break;
+                }
+            }
+            
+            if (this.xp < this.xp_table[0]) return 0;
 
             for (int i = 0; i < this.xp_table.Count; i++)
             {
-                if (this.xp <= this.xp_table[i])
+                if (this.xp < this.xp_table[i])
                 {
                     return i;
                 }
             }
-            return 0;
+            
+            // If xp is higher than any value in the current table, it's the highest level in the table
+            return this.xp_table.Count;
         }
     }
 }

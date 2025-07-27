@@ -20,7 +20,7 @@ namespace LevelExtender
     public class ModEntry : Mod
     {
         public static ModEntry instance;
-        private Timer aTimer;
+        private Timer aTimer2; // Renamed from aTimer2 to reflect it's the only one
         private bool firstFade = false;
         public ModData config = new();
         public Random rand = new(Guid.NewGuid().GetHashCode());
@@ -40,8 +40,7 @@ namespace LevelExtender
         public MPModApi mpmod;
         private bool mpload;
         private double mpMult;
-
-        private Timer aTimer2 = new();
+        
         private List<XPBar> xpBars = new();
         public List<string> snames = new();
         private Harmony harmony;
@@ -89,18 +88,12 @@ namespace LevelExtender
 
             helper.Events.GameLoop.OneSecondUpdateTicked += this.GameEvents_OneSecondTick;
             helper.Events.GameLoop.UpdateTicked += this.GameEvents_QuarterSecondTick;
-            helper.Events.GameLoop.GameLaunched += this.GameEvents_FirstUpdateTick;
             helper.Events.GameLoop.SaveLoaded += this.SaveEvents_AfterLoad;
             helper.Events.GameLoop.Saving += this.SaveEvents_BeforeSave;
             helper.Events.GameLoop.ReturnedToTitle += this.SaveEvents_AfterReturnToTitle;
-            helper.Events.Display.MenuChanged += this.Display_MenuChanged;
-            helper.Events.Input.ButtonPressed += this.ControlEvent_KeyPressed;
             helper.Events.GameLoop.DayStarted += this.TimeEvent_AfterDayStarted;
-            helper.Events.Input.ButtonReleased += this.ControlEvent_KeyReleased;
             helper.Events.Display.Rendered += this.Display_Rendered;
-            helper.Events.Player.Warped += this.Player_Warped;
             helper.Events.Content.AssetRequested += this.OnAssetRequested;
-            helper.Events.World.NpcListChanged += this.OnNpcListChanged;
 
             var commands = new Commands(this);
             helper.ConsoleCommands.Add("xp", "Displays the xp table for your current skill levels.", commands.XPT);
@@ -115,21 +108,6 @@ namespace LevelExtender
             helper.ConsoleCommands.Add("min_ein_price", "Sets the minimum price threshold for extra item notifications.", commands.MinEINP);
 
             this.LEE.OnXPChanged += this.OnXPChanged;
-        }
-        
-        private void OnNpcListChanged(object sender, NpcListChangedEventArgs e)
-        {
-            if (!e.IsCurrentLocation || !e.Location.IsFarm)
-                return;
-
-            foreach (NPC npc in e.Removed)
-            {
-                if (npc is Monster monster && this.monsters.Contains(monster) && monster.Health <= 0)
-                {
-                    Game1.player.gainExperience(Farmer.combatSkill, monster.ExperienceGained);
-                    this.monsters.Remove(monster);
-                }
-            }
         }
 
         private void OnAssetRequested(object sender, AssetRequestedEventArgs e)
@@ -191,9 +169,9 @@ namespace LevelExtender
                 instance.Monitor.Log($"Failed in {nameof(AITI2)}:\n{ex}", LogLevel.Error);
             }
         }
+        
         private DateTime otime = DateTime.Now;
-        private void Player_Warped(object sender, WarpedEventArgs e) { }
-
+        
         private void Display_Rendered(object sender, RenderedEventArgs e)
         {
             if (!Context.IsWorldReady || !this.config.drawBars || !this.xpBars.Any())
@@ -329,45 +307,18 @@ namespace LevelExtender
             b.Draw(texture, new Vector2(x + width - scaledCornerWidth, y + height - scaledCornerHeight), new Rectangle(sourceRect.X + cornerWidth * 2, sourceRect.Y + cornerHeight * 2, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.98f);
         }
 
-        private void ControlEvent_KeyReleased(object sender, ButtonReleasedEventArgs e) { if (!Context.IsWorldReady) return; }
-        private void GameEvents_FirstUpdateTick(object sender, EventArgs e) { }
-
-        private Timer shouldDraw;
-        private void SetTimer(int time, int index)
+        private void SetMultiplayerTimer(int time)
         {
-            if (index == 0)
-            {
-                this.aTimer = new Timer(1100) { AutoReset = false, Enabled = true };
-                this.aTimer.Elapsed += OnTimedEvent;
-            }
-            else if (index == 1)
-            {
-                this.aTimer2 = new Timer(time) { AutoReset = false, Enabled = true };
-                this.aTimer2.Elapsed += OnTimedEvent2;
-            }
-            else if (index == 2)
-            {
-                this.shouldDraw = new Timer(time) { AutoReset = false, Enabled = true };
-                this.shouldDraw.Elapsed += sDrawEnd;
-            }
+            this.aTimer2 = new Timer(time) { AutoReset = false, Enabled = true };
+            this.aTimer2.Elapsed += OnMultiplayerTimedEvent;
         }
 
-        private void sDrawEnd(object sender, ElapsedEventArgs e) { this.shouldDraw.Enabled = false; }
-
-        public void EndXPBar(int key)
+        private void OnMultiplayerTimedEvent(object sender, ElapsedEventArgs e)
         {
-            var bar = this.xpBars.SingleOrDefault(x => x.skill.key == key);
-            if (bar != null)
-            {
-                this.xpBars.Remove(bar);
-                if (this.xpBars.Count > 0)
-                {
-                    this.xpBars[0].ych = 0;
-                }
-            }
+            if (this.mpmod != null)
+                this.mpMult = this.mpmod.Exp_Rate();
+            this.aTimer2.Enabled = false;
         }
-
-        private void OnTimedEvent2(object sender, ElapsedEventArgs e) { if (this.mpmod != null) this.mpMult = this.mpmod.Exp_Rate(); this.aTimer2.Enabled = false; }
 
         private void OnXPChanged(object sender, EXPEventArgs e)
         {
@@ -387,18 +338,14 @@ namespace LevelExtender
         }
 
         public void sortByTime() { this.xpBars = this.xpBars.OrderBy(o => o.CreationTime).ToList(); }
-        public void setYchVals(double val) { foreach (var bar in this.xpBars) { bar.ych = val; } }
         
-        private void Display_MenuChanged(object sender, MenuChangedEventArgs e) { if (!Context.IsWorldReady || e.OldMenu == null) return; }
-        public void Closing() { }
-        private void ControlEvent_KeyPressed(object sender, ButtonPressedEventArgs e) { if (!Context.IsWorldReady) return; }
-
         private void GameEvents_OneSecondTick(object sender, OneSecondUpdateTickedEventArgs e)
         {
             if (!Context.IsWorldReady) return;
 
             // Remove any XP bars that have been visible for more than 5 seconds.
-            this.xpBars.RemoveAll(bar => (DateTime.Now - bar.LastUpdateTime).TotalSeconds > 5);
+            // NOTE: Using CreationTime as LastUpdateTime was redundant.
+            this.xpBars.RemoveAll(bar => (DateTime.Now - bar.CreationTime).TotalSeconds > 5);
 
             if (e.IsMultipleOf(3600))
                 this.monsters.RemoveAll(mon => mon == null || mon.Health <= 0 || mon.currentLocation == null);
@@ -588,11 +535,11 @@ namespace LevelExtender
             {
                 this.mpmod = this.Helper.ModRegistry.GetApi<MPModApi>("f1r3w477.Level_Extender");
                 this.mpload = true;
-                SetTimer(1000, 1);
+                SetMultiplayerTimer(1000);
             }
             else if (this.mpload)
             {
-                SetTimer(1000, 1);
+                SetMultiplayerTimer(1000);
             }
             this.no_mons = false;
         }
@@ -642,7 +589,6 @@ namespace LevelExtender
 
         private void SaveEvents_AfterLoad(object sender, SaveLoadedEventArgs e)
         {
-            SetTimer(2000, 2);
             try
             {
                 this.Monitor.Log("Starting skill load for LE");
@@ -711,8 +657,6 @@ namespace LevelExtender
             this.categories = new List<int[]>();
             this.skillLevs = new List<int>();
         }
-
-        private void OnTimedEvent(object source, ElapsedEventArgs e) { this.Closing(); }
 
         public dynamic TalkToSkill(string[] args)
         {
