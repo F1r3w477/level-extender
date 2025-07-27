@@ -1,31 +1,22 @@
 using System;
-using System.Timers;
 
 namespace LevelExtender
 {
     public class XPBar
     {
         public Skill skill;
-        public Timer timer;
-        public DateTime time;
+        public DateTime CreationTime;   // The time the bar was first created, for the animation.
+        public DateTime LastUpdateTime; // The last time XP was gained, for the 5-second lifespan.
         public double ych = 0;
-        public bool startmove = false;
-        public int movedir = 0;
+        public float highlightTimer = 0f;
 
         public XPBar(Skill skill)
         {
             this.skill = skill;
-            this.timer = new Timer(5000);
-            timer.Elapsed += delegate { skill.LE.EndXPBar(skill.key); };
-            timer.AutoReset = false;
-            timer.Enabled = true;
-            time = DateTime.Now;
+            this.CreationTime = DateTime.Now;
+            this.LastUpdateTime = DateTime.Now;
         }
 
-        public int ychi
-        {
-            get => (int)Math.Round(ych);
-            set { } // This setter was incorrect, leaving it empty is safer than the recursive call it had.
-        }
+        public int ychi => (int)Math.Round(this.ych);
     }
 }

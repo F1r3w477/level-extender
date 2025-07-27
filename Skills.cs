@@ -13,147 +13,137 @@ namespace LevelExtender
         private int Level;
         public int level
         {
-            get { return Level; }
+            get { return this.Level; }
             set
             {
-                Level = value;
-                if (key < 5)
+                this.Level = value;
+                if (this.key < 5)
                 {
-                    if (key == 0) Game1.player.farmingLevel.Value = level;
-                    else if (key == 1) Game1.player.fishingLevel.Value = level;
-                    else if (key == 2) Game1.player.foragingLevel.Value = level;
-                    else if (key == 3) Game1.player.miningLevel.Value = level;
-                    else if (key == 4) Game1.player.combatLevel.Value = level;
+                    if (this.key == 0) Game1.player.farmingLevel.Value = this.level;
+                    else if (this.key == 1) Game1.player.fishingLevel.Value = this.level;
+                    else if (this.key == 2) Game1.player.foragingLevel.Value = this.level;
+                    else if (this.key == 3) Game1.player.miningLevel.Value = this.level;
+                    else if (this.key == 4) Game1.player.combatLevel.Value = this.level;
                 }
-                if (!lvlbyxp)
+                if (!this.lvlbyxp)
                 {
-                    int reqxp = getReqXP(level - 1);
-                    if (key < 5)
-                        Game1.player.experiencePoints[key] = reqxp;
-                    XP = reqxp;
+                    int reqxp = this.getReqXP(this.level - 1);
+                    if (this.key < 5)
+                        Game1.player.experiencePoints[this.key] = reqxp;
+                    this.XP = reqxp;
                 }
-                lvlbyxp = false;
+                this.lvlbyxp = false;
             }
         }
         public int xpc;
         public EXPEventArgs args;
-        public ModEntry LE;
+        private ModEntry mod; // <-- Replaced the obsolete 'LE' field
         public List<int> xp_table;
         public double xp_mod;
         private int XP;
         public int xp
         {
-            get { return XP; }
+            get { return this.XP; }
             set
             {
-                if (xp != value)
-                {
-                    xpc = value - xp;
-                    XP = value;
-                    checkForLevelUp();
-                    LE.LEE.RaiseEvent(args);
-                }
+                if (this.XP == value)
+                    return;
+                
+                this.xpc = value - this.XP;
+                this.XP = value;
+                
+                this.checkForLevelUp();
+                this.mod.LEE.RaiseEvent(this.args);
             }
         }
 
         public int[] cats;
-        int bmaxxp = 0;
 
-        public Skill(ModEntry LE, string name, int xp, double? xp_mod = null, List<int> xp_table = null, int[] cats = null)
+        public Skill(ModEntry mod, string name, int xp, double? xp_mod = null, List<int> xp_table = null, int[] cats = null)
         {
-            if (xp_table != null && xp_table.Count > 0)
-            {
-                bmaxxp = xp_table.Max();
-            }
-
-            this.LE = LE;
+            this.mod = mod;
             this.name = name;
-            this.key = LE.skills.Count;
-            args = new EXPEventArgs();
-            args.key = key;
-            this.xp_table = xp_table ?? new List<int>();
-            if (xp_mod == null)
-                this.xp_mod = 1.0;
-            else
-                this.xp_mod = xp_mod.Value;
-
-            this.cats = cats ?? new int[0];
-
-            if (key == 0) Level = Game1.player.farmingLevel.Value;
-            else if (key == 1) Level = Game1.player.fishingLevel.Value;
-            else if (key == 2) Level = Game1.player.foragingLevel.Value;
-            else if (key == 3) Level = Game1.player.miningLevel.Value;
-            else if (key == 4) Level = Game1.player.combatLevel.Value;
-            else Level = 0;
-
-            generateTable(101);
-
-            if (key < 5)
+            this.key = mod.skills.Count;
+            this.args = new EXPEventArgs
             {
-                Game1.player.experiencePoints[key] = xp;
-                XP = xp;
-            }
-            else
-                XP = xp;
+                key = this.key
+            };
+            this.xp_table = xp_table ?? new List<int>();
+            this.xp_mod = xp_mod ?? 1.0;
+            this.cats = cats ?? Array.Empty<int>();
 
-            checkForLevelUp();
+            if (this.key == 0) this.Level = Game1.player.farmingLevel.Value;
+            else if (this.key == 1) this.Level = Game1.player.fishingLevel.Value;
+            else if (this.key == 2) this.Level = Game1.player.foragingLevel.Value;
+            else if (this.key == 3) this.Level = Game1.player.miningLevel.Value;
+            else if (this.key == 4) this.Level = Game1.player.combatLevel.Value;
+            else this.Level = 0;
+
+            this.generateTable(101);
+
+            if (this.key < 5)
+            {
+                Game1.player.experiencePoints[this.key] = xp;
+            }
+            this.XP = xp;
+
+            this.checkForLevelUp();
         }
+
         public void checkForLevelUp()
         {
-            int l = getLevByXP();
-            if (l != level)
+            int l = this.getLevByXP();
+            if (l != this.level)
             {
-                lvlbyxp = true;
-                level = l;
+                this.lvlbyxp = true;
+                this.level = l;
             }
         }
 
         public int getReqXP(int lev)
         {
-            if (lev < 0) return 0; // Guard against negative index
-            if (xp_table.Count > lev)
-                return xp_table[lev];
-            else
-                generateTable(lev);
-            return xp_table[lev];
+            if (lev < 0) return 0;
+            if (this.xp_table.Count > lev)
+                return this.xp_table[lev];
+            
+            this.generateTable(lev);
+            return this.xp_table[lev];
         }
 
         public void generateTable(int lev)
         {
-            for (int i = xp_table.Count; i <= lev; i++)
+            for (int i = this.xp_table.Count; i <= lev; i++)
             {
-                int exp = getXPByLev(i);
-                xp_table.Add(exp);
+                int exp = this.getXPByLev(i);
+                this.xp_table.Add(exp);
             }
         }
 
         public int getXPByLev(int i)
         {
-            if (i <= 0) return 0; // Base case
-            if (xp_table.Count > i)
-                return xp_table[i];
+            if (i <= 0) return 0;
+            if (this.xp_table.Count > i)
+                return this.xp_table[i];
 
             if (i < 45)
-                return getXPByLev(i - 1) + 300 + (int)Math.Round(1000 * i * xp_mod);
+                return this.getXPByLev(i - 1) + 300 + (int)Math.Round(1000 * i * this.xp_mod);
             else
-                return getXPByLev(i - 1) + 300 + (int)Math.Round(((i * i * i * 0.5)) * xp_mod);
+                return this.getXPByLev(i - 1) + 300 + (int)Math.Round(((i * i * i * 0.5)) * this.xp_mod);
         }
 
         public int getLevByXP()
         {
-            int l = 0;
-            if (xp_table.Count > 0 && xp > xp_table.Max())
-                l = xp_table.Count - 1;
+            if (this.xp > this.xp_table.LastOrDefault())
+                return this.xp_table.Count - 1;
 
-            for (int i = 0; i < xp_table.Count; i++)
+            for (int i = 0; i < this.xp_table.Count; i++)
             {
-                if (xp <= xp_table[i])
+                if (this.xp <= this.xp_table[i])
                 {
-                    l = i;
-                    break;
+                    return i;
                 }
             }
-            return l;
+            return 0;
         }
     }
 }

@@ -32,10 +32,7 @@ namespace LevelExtender
         private bool no_mons = false;
 
         private LEModApi API;
-
         public LEEvents LEE;
-
-        public ModEntry LE;
 
         private int total_m;
         internal double s_mod;
@@ -45,21 +42,14 @@ namespace LevelExtender
         private double mpMult;
 
         private Timer aTimer2 = new();
-
         private List<XPBar> xpBars = new();
-
         public List<string> snames = new();
-
         private Harmony harmony;
-
         public List<Monster> monsters = new();
-
         public List<Skill> skills = new();
         public List<int[]> categories = new();
-        
         public List<int> skillLevs = new();
 
-        // --- Moved from SaveEvents_AfterLoad for better organization ---
         private readonly string[] vanillaSkillNames = { "Farming", "Fishing", "Foraging", "Mining", "Combat" };
         private readonly List<int[]> vanillaItemCategories = new()
         {
@@ -70,12 +60,10 @@ namespace LevelExtender
             new[] { -28, -29, -95, -96, -98 } // Combat
         };
         public readonly List<int> defaultRequiredXP = new() { 100, 380, 770, 1300, 2150, 3300, 4800, 6900, 10000, 15000 };
-        // ---
 
         public ModEntry()
         {
             instance = this;
-            this.LE = this;
             this.LEE = new LEEvents();
             this.total_m = 0;
             this.s_mod = -1.0;
@@ -203,24 +191,144 @@ namespace LevelExtender
                 instance.Monitor.Log($"Failed in {nameof(AITI2)}:\n{ex}", LogLevel.Error);
             }
         }
-
+        private DateTime otime = DateTime.Now;
         private void Player_Warped(object sender, WarpedEventArgs e) { }
 
-        private DateTime otime;
         private void Display_Rendered(object sender, RenderedEventArgs e)
         {
-            if (!Context.IsWorldReady)
+            if (!Context.IsWorldReady || !this.config.drawBars || !this.xpBars.Any())
                 return;
-            if (this.otime == default)
-                this.otime = DateTime.Now;
 
-            if (this.xpBars.Count > 0)
-            {
-                // Drawing logic... (omitted for brevity as it's unchanged)
-            }
+            SpriteBatch spriteBatch = e.SpriteBatch;
+            double elapsedSeconds = (this.otime == default) ? 0 : (DateTime.Now - this.otime).TotalSeconds;
             this.otime = DateTime.Now;
+
+            for (int i = 0; i < this.xpBars.Count; i++)
+            {
+                try
+                {
+                    XPBar bar = this.xpBars[i];
+                    if (bar == null)
+                        continue;
+
+                    bar.highlightTimer = Math.Max(0, bar.highlightTimer - (float)elapsedSeconds);
+                    
+                    double deltaTime = (DateTime.Now - bar.CreationTime).TotalMilliseconds;
+                    float transparency = 1f;
+                    if (deltaTime < 500)
+                        transparency = (float)(deltaTime / 500.0);
+                    else if (deltaTime > 4500)
+                        transparency = 1 - ((float)(deltaTime - 4500) / 500.0f);
+
+                    transparency = Math.Clamp(transparency, 0f, 1f);
+                    if (transparency <= 0)
+                        continue;
+
+                    int startX = 8;
+                    int startY = 8 + (i * 72);
+                    int width = 280;
+                    int height = 72;
+                    int barWidth = 240;
+
+                    this.DrawTextureBox(spriteBatch, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), startX, startY, width, height, Color.White * transparency, 4f, true);
+
+                    Skill skill = bar.skill;
+
+                    Rectangle skillIconSourceRect;
+                    switch (skill.key)
+                    {
+                        case 0: // Farming
+                            skillIconSourceRect = new Rectangle(10, 428, 10, 10);
+                            break;
+                        case 1: // Fishing
+                            skillIconSourceRect = new Rectangle(20, 428, 10, 10);
+                            break;
+                        case 2: // Foraging
+                            skillIconSourceRect = new Rectangle(60, 428, 10, 10);
+                            break;
+                        case 3: // Mining
+                            skillIconSourceRect = new Rectangle(30, 428, 10, 10);
+                            break;
+                        case 4: // Combat
+                            skillIconSourceRect = new Rectangle(120, 428, 10, 10);
+                            break;
+                        default:
+                            skillIconSourceRect = new Rectangle(18, 625, 13, 14); // Luck icon
+                            break;
+                    }
+                    
+                    spriteBatch.Draw(
+                        Game1.mouseCursors,
+                        new Vector2(startX + 16, startY + 16),
+                        skillIconSourceRect,
+                        Color.White * transparency,
+                        0f,
+                        Vector2.Zero,
+                        4f,
+                        SpriteEffects.None,
+                        1f
+                    );
+
+                    Color levelTextColor = bar.highlightTimer > 0 ? Color.LimeGreen : Game1.textColor;
+
+                    string name = skill.name;
+                    string levelText = $"Lvl {skill.level}";
+                    Utility.drawTextWithShadow(spriteBatch, name, Game1.smallFont, new Vector2(startX + 68, startY + 22), Game1.textColor * transparency);
+                    Utility.drawTextWithShadow(spriteBatch, levelText, Game1.smallFont, new Vector2(startX + width - Game1.smallFont.MeasureString(levelText).X - 20, startY + 22), levelTextColor * transparency);
+
+                    int currentLevel = skill.level;
+                    int currentXp = skill.xp - skill.getReqXP(currentLevel - 1);
+                    int requiredXp = skill.getReqXP(currentLevel) - skill.getReqXP(currentLevel - 1);
+                    if (requiredXp <= 0) requiredXp = 1;
+                    float xpPercent = Math.Clamp((float)currentXp / requiredXp, 0f, 1f);
+                    int fillWidth = (int)(barWidth * xpPercent);
+                    
+                    spriteBatch.Draw(Game1.mouseCursors, new Rectangle(startX + 20, startY + 52, barWidth, 12), new Rectangle(384, 396, 15, 15), Color.Black * 0.35f * transparency);
+                    if (fillWidth > 0)
+                    {
+                        spriteBatch.Draw(Game1.mouseCursors, new Rectangle(startX + 20, startY + 52, fillWidth, 12), new Rectangle(306, 320, 16, 16), Color.White * transparency);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    this.Monitor.Log($"Error rendering XP bar: {ex.Message}", LogLevel.Error);
+                }
+            }
         }
         
+        /// <summary>Draws a scalable texture box, just like the vanilla game menus.</summary>
+        private void DrawTextureBox(SpriteBatch b, Texture2D texture, Rectangle sourceRect, int x, int y, int width, int height, Color color, float scale = 1f, bool drawShadow = true)
+        {
+            int cornerWidth = (int)(sourceRect.Width / 3f);
+            int cornerHeight = (int)(sourceRect.Height / 3f);
+            float scaledCornerWidth = cornerWidth * scale;
+            float scaledCornerHeight = cornerHeight * scale;
+
+            if (drawShadow)
+                b.Draw(Game1.shadowTexture, new Rectangle(x, y, width, height), Color.Black * 0.5f);
+
+            // Top-left corner
+            b.Draw(texture, new Vector2(x, y), new Rectangle(sourceRect.X, sourceRect.Y, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.98f);
+            // Top edge
+            b.Draw(texture, new Rectangle(x + (int)scaledCornerWidth, y, width - (int)scaledCornerWidth * 2, (int)scaledCornerHeight), new Rectangle(sourceRect.X + cornerWidth, sourceRect.Y, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, SpriteEffects.None, 0.98f);
+            // Top-right corner
+            b.Draw(texture, new Vector2(x + width - scaledCornerWidth, y), new Rectangle(sourceRect.X + cornerWidth * 2, sourceRect.Y, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.98f);
+
+            // Left edge
+            b.Draw(texture, new Rectangle(x, y + (int)scaledCornerHeight, (int)scaledCornerWidth, height - (int)scaledCornerHeight * 2), new Rectangle(sourceRect.X, sourceRect.Y + cornerHeight, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, SpriteEffects.None, 0.98f);
+            // Center fill
+            b.Draw(texture, new Rectangle(x + (int)scaledCornerWidth, y + (int)scaledCornerHeight, width - (int)scaledCornerWidth * 2, height - (int)scaledCornerHeight * 2), new Rectangle(sourceRect.X + cornerWidth, sourceRect.Y + cornerHeight, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, SpriteEffects.None, 0.98f);
+            // Right edge
+            b.Draw(texture, new Rectangle(x + width - (int)scaledCornerWidth, y + (int)scaledCornerHeight, (int)scaledCornerWidth, height - (int)scaledCornerHeight * 2), new Rectangle(sourceRect.X + cornerWidth * 2, sourceRect.Y + cornerHeight, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, SpriteEffects.None, 0.98f);
+
+            // Bottom-left corner
+            b.Draw(texture, new Vector2(x, y + height - scaledCornerHeight), new Rectangle(sourceRect.X, sourceRect.Y + cornerHeight * 2, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.98f);
+            // Bottom edge
+            b.Draw(texture, new Rectangle(x + (int)scaledCornerWidth, y + height - (int)scaledCornerHeight, width - (int)scaledCornerWidth * 2, (int)scaledCornerHeight), new Rectangle(sourceRect.X + cornerWidth, sourceRect.Y + cornerHeight * 2, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, SpriteEffects.None, 0.98f);
+            // Bottom-right corner
+            b.Draw(texture, new Vector2(x + width - scaledCornerWidth, y + height - scaledCornerHeight), new Rectangle(sourceRect.X + cornerWidth * 2, sourceRect.Y + cornerHeight * 2, cornerWidth, cornerHeight), color, 0f, Vector2.Zero, scale, SpriteEffects.None, 0.98f);
+        }
+
         private void ControlEvent_KeyReleased(object sender, ButtonReleasedEventArgs e) { if (!Context.IsWorldReady) return; }
         private void GameEvents_FirstUpdateTick(object sender, EventArgs e) { }
 
@@ -263,28 +371,22 @@ namespace LevelExtender
 
         private void OnXPChanged(object sender, EXPEventArgs e)
         {
-            XPBar bar = this.xpBars.SingleOrDefault(b => b.skill.key == e.key);
             Skill skill = this.skills.SingleOrDefault(sk => sk.key == e.key);
-
-            if (skill == null || skill.xpc < 0 || skill.xpc > 100001 || (this.shouldDraw != null && this.shouldDraw.Enabled))
+            if (skill == null || skill.xpc <= 0)
                 return;
 
-            if (bar != null)
-            {
-                bar.timer.Stop();
-                bar.timer.Start();
-                bar.time = DateTime.Now;
-                double val = bar.ych * -1;
-                setYchVals(val);
-                sortByTime();
-            }
-            else
-            {
-                this.xpBars.Add(new XPBar(skill));
-            }
+            // Always remove the old bar for this skill, if one exists.
+            // This ensures that when we add a new one, it gets a fresh animation timer.
+            this.xpBars.RemoveAll(bar => bar.skill.key == e.key);
+
+            // Create a fresh XPBar and add it to the list.
+            this.xpBars.Add(new XPBar(skill));
+            
+            // Sort the bars to ensure they don't jump around if multiple are on screen.
+            this.sortByTime();
         }
 
-        public void sortByTime() { this.xpBars = this.xpBars.OrderBy(o => o.time).ToList(); }
+        public void sortByTime() { this.xpBars = this.xpBars.OrderBy(o => o.CreationTime).ToList(); }
         public void setYchVals(double val) { foreach (var bar in this.xpBars) { bar.ych = val; } }
         
         private void Display_MenuChanged(object sender, MenuChangedEventArgs e) { if (!Context.IsWorldReady || e.OldMenu == null) return; }
@@ -294,6 +396,9 @@ namespace LevelExtender
         private void GameEvents_OneSecondTick(object sender, OneSecondUpdateTickedEventArgs e)
         {
             if (!Context.IsWorldReady) return;
+
+            // Remove any XP bars that have been visible for more than 5 seconds.
+            this.xpBars.RemoveAll(bar => (DateTime.Now - bar.LastUpdateTime).TotalSeconds > 5);
 
             if (e.IsMultipleOf(3600))
                 this.monsters.RemoveAll(mon => mon == null || mon.Health <= 0 || mon.currentLocation == null);
@@ -341,14 +446,14 @@ namespace LevelExtender
                     var data = Game1.content.Load<Dictionary<string, string>>("Data/ObjectInformation");
                     m.objectsToDrop.Add(data.Keys.ElementAt(this.rand.Next(data.Count)));
                     m.displayName += ": LE BOSS";
-                    m.Scale = m.Scale * (float)(1 + (this.rand.NextDouble() * Game1.player.CombatLevel / 25.0));
+                    m.Scale *= (float)(1 + (this.rand.NextDouble() * Game1.player.CombatLevel / 25.0));
                 }
                 else
                 {
                     tier = 1;
                 }
 
-                m.DamageToFarmer = (int)(m.DamageToFarmer / 1.5) + (int)(Game1.player.combatLevel.Value / 3);
+                m.DamageToFarmer = (int)(m.DamageToFarmer / 1.5) + (Game1.player.combatLevel.Value / 3);
                 m.Health *= 1 + (Game1.player.CombatLevel / 4);
                 m.focusedOnFarmers = true;
                 m.wildernessFarmMonster = true;
@@ -393,54 +498,56 @@ namespace LevelExtender
                 this.initialtooluse = false;
             }
 
-            if (e.IsMultipleOf(8) && Game1.activeClickableMenu is BobberBar bar)
+            if (!e.IsMultipleOf(8)) return;
+
+            if (Game1.activeClickableMenu is not BobberBar bar)
             {
-                if (!this.firstFade)
+                if (this.firstFade)
+                    this.firstFade = false;
+                return;
+            }
+
+            if (!this.firstFade)
+            {
+                int bobberBonus = 0;
+                Tool tool = Game1.player.CurrentTool;
+                bool beginnersRod = tool is FishingRod && tool.UpgradeLevel == 1;
+
+                if (tool.attachments?.Any(a => a?.name == "Cork Bobber") == true)
+                    bobberBonus = 24;
+
+                if (Game1.player.FishingLevel > 99) bobberBonus += 8;
+                else if (Game1.player.FishingLevel > 74) bobberBonus += 6;
+                else if (Game1.player.FishingLevel > 49) bobberBonus += 4;
+                else if (Game1.player.FishingLevel > 24) bobberBonus += 2;
+
+                int bobberBarSize;
+                if (!this.Helper.ModRegistry.IsLoaded("DevinLematty.ExtremeFishingOverhaul"))
                 {
-                    int bobberBonus = 0;
-                    Tool tool = Game1.player.CurrentTool;
-                    bool beginnersRod = tool is FishingRod && tool.UpgradeLevel == 1;
-
-                    if (tool.attachments?.Any(a => a?.name == "Cork Bobber") == true)
-                        bobberBonus = 24;
-
-                    if (Game1.player.FishingLevel > 99) bobberBonus += 8;
-                    else if (Game1.player.FishingLevel > 74) bobberBonus += 6;
-                    else if (Game1.player.FishingLevel > 49) bobberBonus += 4;
-                    else if (Game1.player.FishingLevel > 24) bobberBonus += 2;
-
-                    int bobberBarSize;
-                    if (!this.Helper.ModRegistry.IsLoaded("DevinLematty.ExtremeFishingOverhaul"))
-                    {
-                        if (beginnersRod) bobberBarSize = 80 + (5 * 9);
-                        else if (Game1.player.FishingLevel < 11) bobberBarSize = 80 + bobberBonus + (Game1.player.FishingLevel * 9);
-                        else bobberBarSize = 165 + bobberBonus + (int)(Game1.player.FishingLevel * (0.5 + (this.rand.NextDouble() / 2.0)));
-                    }
-                    else
-                    {
-                        if (beginnersRod) bobberBarSize = 80 + (5 * 7);
-                        else if (Game1.player.FishingLevel < 11) bobberBarSize = 80 + bobberBonus + (Game1.player.FishingLevel * 7);
-                        else if (Game1.player.FishingLevel > 10 && Game1.player.FishingLevel < 20) bobberBarSize = 150 + bobberBonus + Game1.player.FishingLevel;
-                        else bobberBarSize = 170 + bobberBonus + (int)(Game1.player.FishingLevel * 0.8 * (0.5 + (this.rand.NextDouble() / 2.0)));
-                    }
-
-                    this.firstFade = true;
-                    this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight").SetValue(bobberBarSize);
-                    this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").SetValue(568 - bobberBarSize);
+                    if (beginnersRod) bobberBarSize = 80 + (5 * 9);
+                    else if (Game1.player.FishingLevel < 11) bobberBarSize = 80 + bobberBonus + (Game1.player.FishingLevel * 9);
+                    else bobberBarSize = 165 + bobberBonus + (int)(Game1.player.FishingLevel * (0.5 + (this.rand.NextDouble() / 2.0)));
                 }
                 else
                 {
-                    bool bobberInBar = this.Helper.Reflection.GetField<bool>(bar, "bobberInBar").GetValue();
-                    if (!bobberInBar)
-                    {
-                        float dist = this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").GetValue();
-                        this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").SetValue(dist + ((Game1.player.FishingLevel - 10) / 22000.0f));
-                    }
+                    if (beginnersRod) bobberBarSize = 80 + (5 * 7);
+                    else if (Game1.player.FishingLevel < 11) bobberBarSize = 80 + bobberBonus + (Game1.player.FishingLevel * 7);
+                    else if (Game1.player.FishingLevel > 10 && Game1.player.FishingLevel < 20) bobberBarSize = 150 + bobberBonus + Game1.player.FishingLevel;
+                    else bobberBarSize = 170 + bobberBonus + (int)(Game1.player.FishingLevel * 0.8 * (0.5 + (this.rand.NextDouble() / 2.0)));
                 }
+
+                this.firstFade = true;
+                this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight").SetValue(bobberBarSize);
+                this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").SetValue(568 - bobberBarSize);
             }
-            else if (this.firstFade)
+            else
             {
-                this.firstFade = false;
+                bool bobberInBar = this.Helper.Reflection.GetField<bool>(bar, "bobberInBar").GetValue();
+                if (!bobberInBar)
+                {
+                    float dist = this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").GetValue();
+                    this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").SetValue(dist + ((Game1.player.FishingLevel - 10) / 22000.0f));
+                }
             }
         }
 
@@ -468,15 +575,13 @@ namespace LevelExtender
             Farm farm = Game1.getFarm();
             double gchance = Game1.player.farmingLevel.Value * 0.0002;
             double pchance = Game1.player.farmingLevel.Value * 0.001;
-            foreach (Vector2 key in farm.terrainFeatures.Keys)
+
+            foreach (HoeDirt tf in farm.terrainFeatures.Values.OfType<HoeDirt>().Where(dirt => dirt.crop != null))
             {
-                if (farm.terrainFeatures[key] is HoeDirt tf && tf.crop != null)
-                {
-                    if (this.rand.NextDouble() < gchance)
-                        tf.crop.growCompletely();
-                    else if (this.rand.NextDouble() < pchance)
-                        tf.crop.currentPhase.Value = Math.Min(tf.crop.currentPhase.Value + 1, tf.crop.phaseDays.Count - 1);
-                }
+                if (this.rand.NextDouble() < gchance)
+                    tf.crop.growCompletely();
+                else if (this.rand.NextDouble() < pchance)
+                    tf.crop.currentPhase.Value = Math.Min(tf.crop.currentPhase.Value + 1, tf.crop.phaseDays.Count - 1);
             }
 
             if (!this.mpload && this.Helper.ModRegistry.IsLoaded("f1r3w477.Level_Extender"))
@@ -550,7 +655,7 @@ namespace LevelExtender
                     {
                         this.Monitor.Log($"skill load - {str}");
                         string[] vals = str.Split(',');
-                        Skill sk = new Skill(this.LE, vals[0], int.Parse(vals[1]), double.Parse(vals[2]), new List<int>(this.defaultRequiredXP), this.vanillaItemCategories[count]);
+                        Skill sk = new Skill(this, vals[0], int.Parse(vals[1]), double.Parse(vals[2]), new List<int>(this.defaultRequiredXP), this.vanillaItemCategories[count]);
                         this.skills.Add(sk);
                         this.snames.Add(sk.name);
                         this.categories.Add(sk.cats);
@@ -562,7 +667,7 @@ namespace LevelExtender
                 for (int i = count; i < 5; i++)
                 {
                     this.Monitor.Log($"adding skills - {i}, dxp: {Game1.player.experiencePoints[i]}");
-                    Skill sk = new Skill(this.LE, this.vanillaSkillNames[i], Game1.player.experiencePoints[i], 1.0, new List<int>(this.defaultRequiredXP), this.vanillaItemCategories[i]);
+                    Skill sk = new Skill(this, this.vanillaSkillNames[i], Game1.player.experiencePoints[i], 1.0, new List<int>(this.defaultRequiredXP), this.vanillaItemCategories[i]);
                     this.skills.Add(sk);
                     this.snames.Add(sk.name);
                     this.categories.Add(sk.cats);
@@ -639,7 +744,7 @@ namespace LevelExtender
 
         public int initializeSkill(string name, int xp, double? xp_mod = null, List<int> xp_table = null, int[] cats = null)
         {
-            Skill sk = new Skill(this.LE, name, xp, xp_mod, xp_table, cats);
+            Skill sk = new Skill(this, name, xp, xp_mod, xp_table, cats);
             if (sk == null) return -1;
             this.skills.Add(sk);
             return 0;
