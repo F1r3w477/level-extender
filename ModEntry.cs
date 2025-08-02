@@ -430,10 +430,11 @@ namespace LevelExtender
         private void DrawExperienceBar(SpriteBatch b, XPBar bar, int index)
         {
             // --- Timing and Transparency ---
-            double elapsedSeconds = (_lastRenderTime == default) ? 0 : (DateTime.Now - _lastRenderTime).TotalSeconds;
+            var currentTime = DateTime.Now;
+            double elapsedSeconds = (_lastRenderTime == default) ? 0 : (currentTime - _lastRenderTime).TotalSeconds;
             bar.HighlightTimer = Math.Max(0, bar.HighlightTimer - (float)elapsedSeconds);
 
-            double fadeTime = (DateTime.Now - bar.CreationTime).TotalMilliseconds;
+            double fadeTime = (currentTime - bar.CreationTime).TotalMilliseconds;
             float transparency = 1f;
             if (fadeTime < FadeInDurationMs)
                 transparency = (float)(fadeTime / FadeInDurationMs);
@@ -645,8 +646,9 @@ namespace LevelExtender
         /// <summary>Gets a new base monster to be turned into a boss.</summary>
         private Monster GetBossMonster(Vector2 position)
         {
+            const int numberOfBossTypes = 5;
             int combatLevel = _skills.FirstOrDefault(s => s.Key == 4)?.Level ?? 0;
-            int choice = _random.Next(1, 6);
+            int choice = _random.Next(1, numberOfBossTypes + 1);
             return choice switch
             {
                 1 => new RockCrab(position, "Iridium Crab"),

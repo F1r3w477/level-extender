@@ -177,12 +177,42 @@ namespace LevelExtender
         /// <returns>The calculated skill level.</returns>
         private int GetLevelByExperience()
         {
+            // First, ensure the table is large enough to contain our current XP.
             while (_experienceTable.Any() && _experience >= _experienceTable.Last())
             {
-                // If XP is higher than the max in the table, generate more levels.
                 GenerateExperienceTable(_experienceTable.Count + 10);
             }
-            return _experienceTable.Count(reqXp => _experience >= reqXp);
+
+            // Call the new, fast helper method.
+            return FindLevelWithBinarySearch(_experienceTable, _experience);
+        }
+
+        /// <summary>Efficiently finds the level by binary search in the experience table.</summary>
+        /// <param name="experienceTable">The sorted list of cumulative experience points required to reach each level.</param>
+        /// <param name="experience">The player's current total experience points.</param>
+        /// <returns>The calculated skill level corresponding to the given experience.</returns>
+        private static int FindLevelWithBinarySearch(IReadOnlyList<int> experienceTable, int experience)
+        {
+            int left = 0;
+            int right = experienceTable.Count - 1;
+            int result = 0; // Default to level 0 if no thresholds are met
+
+            while (left <= right)
+            {
+                int mid = left + (right - left) / 2; // Avoids potential overflow
+                if (experience >= experienceTable[mid])
+                {
+                    // This is a potential level, so store it and check the upper half for a better one.
+                    result = mid + 1;
+                    left = mid + 1;
+                }
+                else
+                {
+                    // The target is in the lower half.
+                    right = mid - 1;
+                }
+            }
+            return result;
         }
 
         /// <summary>
