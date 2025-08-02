@@ -35,6 +35,7 @@ namespace LevelExtender
         private readonly List<XPBar> _xpBars = new();
         private DateTime _lastRenderTime;
         private Dictionary<string, string> _cachedObjectData;
+        private string[] _cachedObjectKeys;
 
         // Game state variables
         private bool _isFishingBobberLogicActive;
@@ -596,9 +597,9 @@ namespace LevelExtender
 
             // Give it a random object as a special drop.
             this._cachedObjectData ??= Game1.content.Load<Dictionary<string, string>>("Data/Objects");
+            this._cachedObjectKeys ??= this._cachedObjectData.Keys.ToArray();
 
-            var objectKeys = this._cachedObjectData.Keys.ToArray(); // Convert keys to an array.
-            string randomObjectId = objectKeys[_random.Next(objectKeys.Length)]; // Get a random item by index.
+            string randomObjectId = _cachedObjectKeys[_random.Next(_cachedObjectKeys.Length)];
             monster.objectsToDrop.Add(randomObjectId);
 
             monster.displayName += ": LE BOSS";
