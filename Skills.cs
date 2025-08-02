@@ -5,168 +5,228 @@ using System.Linq;
 
 namespace LevelExtender
 {
+    /// <summary>
+    /// Represents a player skill, handling its level, experience, and interactions with the game.
+    /// </summary>
     public class Skill
     {
-        public string name;
-        public int key;
-        public bool lvlbyxp = false;
-        private int Level;
-        public int level
+        // A constant makes the code clearer than using the "magic number" 5.
+        private const int VanillaSkillCount = 5;
+
+        // Backing fields for properties are private and use _camelCase.
+        private readonly ModEntry _mod;
+        private readonly List<int> _experienceTable;
+        private int _level;
+        private int _experience;
+
+        /// <summary>A flag to indicate if a level change is coming from an XP update.</summary>
+        /// <remarks>This prevents the experience from being reset when a level-up occurs naturally.</remarks>
+        private bool _isLevelingViaExperience = false;
+
+        #region Properties
+        // Properties use PascalCase and provide controlled access (encapsulation).
+        // 'private set' prevents other classes from changing these values directly.
+
+        /// <summary>Gets the display name of the skill.</summary>
+        public string Name { get; private set; }
+
+        /// <summary>Gets the unique key (index) for this skill.</summary>
+        public int Key { get; private set; }
+
+        /// <summary>Gets the modifier for calculating required experience past level 10.</summary>
+        public double ExperienceModifier { get; private set; }
+
+        /// <summary>Gets a read-only view of the experience required for each level.</summary>
+        public IReadOnlyList<int> ExperienceTable => _experienceTable;
+
+        /// <summary>Gets the item categories associated with this skill, if any.</summary>
+        public IReadOnlyList<int> Categories { get; private set; }
+
+        /// <summary>
+        /// Gets or sets the current level of the skill.
+        /// Setting the level also updates the vanilla game state and can reset experience points.
+        /// </summary>
+        public int Level
         {
-            get { return this.Level; }
+            get => _level;
             set
             {
-                this.Level = value;
-                if (this.key < 5)
+                if (_level == value) return;
+
+                _level = value;
+
+                // Update the corresponding vanilla skill level in the game.
+                // A switch statement is cleaner than a long if/else if chain.
+                if (this.Key < VanillaSkillCount)
                 {
-                    if (this.key == 0) Game1.player.farmingLevel.Value = this.level;
-                    else if (this.key == 1) Game1.player.fishingLevel.Value = this.level;
-                    else if (this.key == 2) Game1.player.foragingLevel.Value = this.level;
-                    else if (this.key == 3) Game1.player.miningLevel.Value = this.level;
-                    else if (this.key == 4) Game1.player.combatLevel.Value = this.level;
+                    switch (this.Key)
+                    {
+                        case 0: Game1.player.farmingLevel.Value = _level; break;
+                        case 1: Game1.player.fishingLevel.Value = _level; break;
+                        case 2: Game1.player.foragingLevel.Value = _level; break;
+                        case 3: Game1.player.miningLevel.Value = _level; break;
+                        case 4: Game1.player.combatLevel.Value = _level; break;
+                    }
                 }
-                if (!this.lvlbyxp)
+
+                // If the level was set manually (e.g., via a command), update the XP to match.
+                // If it was triggered by an XP gain, this block is skipped to preserve the current XP.
+                if (!_isLevelingViaExperience)
                 {
-                    int reqxp = this.getReqXP(this.level - 1);
-                    if (this.key < 5)
-                        Game1.player.experiencePoints[this.key] = reqxp;
-                    this.XP = reqxp;
+                    int requiredXp = this.GetRequiredExperienceForLevel(_level);
+                    // Directly set the backing field to avoid triggering the setter's logic again.
+                    _experience = requiredXp;
+                    if (this.Key < VanillaSkillCount)
+                    {
+                        Game1.player.experiencePoints[this.Key] = requiredXp;
+                    }
                 }
-                this.lvlbyxp = false;
+
+                // Reset the flag after the operation is complete.
+                _isLevelingViaExperience = false;
             }
         }
-        public int xpc;
-        public EXPEventArgs args;
-        private ModEntry mod;
-        public List<int> xp_table;
-        public double xp_mod;
-        private int XP;
-        public int xp
+
+        /// <summary>
+        /// Gets or sets the total experience points for the skill.
+        /// Setting the experience may trigger a level-up.
+        /// </summary>
+        public int Experience
         {
-            get { return this.XP; }
+            get => _experience;
             set
             {
-                if (this.XP == value)
-                    return;
-                
-                this.xpc = value - this.XP;
-                this.XP = value;
-                
-                this.checkForLevelUp();
-                this.mod.LEE.RaiseEvent(this.args);
+                if (_experience == value) return;
+
+                _experience = value;
+                if (this.Key < VanillaSkillCount)
+                {
+                    Game1.player.experiencePoints[this.Key] = _experience;
+                }
+
+                this.CheckForLevelUp();
+
+                // Note: The EXPEventArgs class might need the amount of XP gained.
+                // If so, you would calculate it here: int xpGained = value - _experience;
+                _mod.Events.RaiseEvent(new EXPEventArgs { Key = this.Key });
             }
         }
 
-        public int[] cats;
+        #endregion
 
-        public Skill(ModEntry mod, string name, int xp, double? xp_mod = null, List<int> xp_table = null, int[] cats = null)
+        /// <summary>
+        /// Initializes a new instance of the <see cref="Skill"/> class.
+        /// </summary>
+        public Skill(ModEntry mod, string name, int currentXp, double? xpModifier = null, List<int> xpTable = null, int[] categories = null)
         {
-            this.mod = mod;
-            this.name = name;
-            this.key = mod.skills.Count;
-            this.args = new EXPEventArgs
+            _mod = mod ?? throw new ArgumentNullException(nameof(mod));
+            this.Name = name;
+            this.Key = mod.Skills.Count;
+
+            _experienceTable = xpTable ?? new List<int>();
+            this.ExperienceModifier = xpModifier ?? 1.0;
+            this.Categories = categories ?? Array.Empty<int>();
+
+            // --- LOGIC CHANGE HIGHLIGHTED BELOW ---
+
+            // 1. Set the experience from the provided value. This is our source of truth.
+            _experience = currentXp;
+
+            // 2. Generate the experience table so we can calculate the level.
+            this.GenerateExperienceTable(101);
+
+            // 3. Calculate the correct initial level directly from the experience.
+            _level = this.GetLevelByExperience();
+
+            // 4. For vanilla skills, sync BOTH the correct level and experience back to the game state.
+            if (this.Key < VanillaSkillCount)
             {
-                key = this.key
-            };
-            this.xp_table = xp_table ?? new List<int>();
-            this.xp_mod = xp_mod ?? 1.0;
-            this.cats = cats ?? Array.Empty<int>();
-
-            if (this.key == 0) this.Level = Game1.player.farmingLevel.Value;
-            else if (this.key == 1) this.Level = Game1.player.fishingLevel.Value;
-            else if (this.key == 2) this.Level = Game1.player.foragingLevel.Value;
-            else if (this.key == 3) this.Level = Game1.player.miningLevel.Value;
-            else if (this.key == 4) this.Level = Game1.player.combatLevel.Value;
-            else this.Level = 0;
-
-            this.generateTable(101);
-
-            if (this.key < 5)
-            {
-                Game1.player.experiencePoints[this.key] = xp;
-            }
-            this.XP = xp;
-
-            this.checkForLevelUp();
-        }
-
-        public void checkForLevelUp()
-        {
-            int l = this.getLevByXP();
-            if (l != this.level)
-            {
-                this.lvlbyxp = true;
-                this.level = l;
-            }
-        }
-
-        public int getReqXP(int lev)
-        {
-            if (lev < 0) return 0;
-            if (this.xp_table.Count > lev)
-                return this.xp_table[lev];
-            
-            this.generateTable(lev);
-            return this.xp_table[lev];
-        }
-
-        // REFACTORED: This method is now iterative instead of recursive for much better performance.
-        public void generateTable(int lev)
-        {
-            // The XP table stores cumulative XP needed. Index 0 is for level 1, index 1 for level 2, etc.
-            // If the table is empty and we have default values, use them first.
-            if (this.xp_table.Count == 0 && mod.defaultRequiredXP.Any())
-            {
-                this.xp_table.AddRange(mod.defaultRequiredXP);
-            }
-
-            for (int i = this.xp_table.Count; i <= lev; i++)
-            {
-                // To get XP for level i+1 (at index i), we need the XP for level i (at index i-1).
-                int previousXp = this.xp_table[i - 1];
-                int requiredXp;
-                int levelNum = i + 1; // The actual level number we're calculating for
-
-                if (levelNum < 45)
+                Game1.player.experiencePoints[this.Key] = _experience;
+                switch (this.Key)
                 {
-                    requiredXp = previousXp + 300 + (int)Math.Round(1000 * levelNum * this.xp_mod);
+                    case 0: Game1.player.farmingLevel.Value = _level; break;
+                    case 1: Game1.player.fishingLevel.Value = _level; break;
+                    case 2: Game1.player.foragingLevel.Value = _level; break;
+                    case 3: Game1.player.miningLevel.Value = _level; break;
+                    case 4: Game1.player.combatLevel.Value = _level; break;
                 }
-                else
-                {
-                    requiredXp = previousXp + 300 + (int)Math.Round(((double)levelNum * levelNum * levelNum * 0.5) * this.xp_mod);
-                }
-                this.xp_table.Add(requiredXp);
             }
         }
 
-        public int getLevByXP()
+        /// <summary>
+        /// Checks if the current experience total corresponds to a different level and applies the change.
+        /// This handles both leveling up and leveling down.
+        /// </summary>
+        private void CheckForLevelUp()
         {
-            int requiredLevel = this.level;
-            while (true)
-            {
-                int requiredXp = getReqXP(requiredLevel);
-                if (this.xp >= requiredXp)
-                {
-                    requiredLevel++;
-                }
-                else
-                {
-                    break;
-                }
-            }
-            
-            if (this.xp < this.xp_table[0]) return 0;
+            int levelFromXp = this.GetLevelByExperience();
 
-            for (int i = 0; i < this.xp_table.Count; i++)
+            // The handles both gaining **and** losing levels. Hence !=
+            if (levelFromXp != _level)
             {
-                if (this.xp < this.xp_table[i])
-                {
-                    return i;
-                }
+                _isLevelingViaExperience = true;
+                this.Level = levelFromXp;
             }
-            
-            // If xp is higher than any value in the current table, it's the highest level in the table
-            return this.xp_table.Count;
+        }
+
+        /// <summary>
+        /// Calculates the level based on the current total experience points.
+        /// </summary>
+        /// <returns>The calculated skill level.</returns>
+        private int GetLevelByExperience()
+        {
+            while (_experienceTable.Any() && _experience >= _experienceTable.Last())
+            {
+                // If XP is higher than the max in the table, generate more levels.
+                GenerateExperienceTable(_experienceTable.Count + 10);
+            }
+            return _experienceTable.Count(reqXp => _experience >= reqXp);
+        }
+
+        /// <summary>
+        /// Gets the total experience points required to reach a given level.
+        /// </summary>
+        /// <param name="levelIndex">The target level (e.g., level 1, 10, 50).</param>
+        /// <returns>The total experience points needed.</returns>
+        public int GetRequiredExperienceForLevel(int levelIndex)
+        {
+            if (levelIndex < 0) return 0;
+
+            if (_experienceTable.Count <= levelIndex)
+            {
+                GenerateExperienceTable(levelIndex + 1);
+            }
+
+            return _experienceTable[levelIndex];
+        }
+
+
+        /// <summary>
+        /// Populates the experience table up to a specified level.
+        /// </summary>
+        private void GenerateExperienceTable(int targetLevel)
+        {
+            // Use vanilla XP values for the first 10 levels if the table is empty.
+            if (_experienceTable.Count == 0 && _mod.DefaultRequiredXP.Any())
+            {
+                _experienceTable.AddRange(_mod.DefaultRequiredXP);
+            }
+
+            // Iteratively generate XP requirements for levels beyond the current table size.
+            for (int i = _experienceTable.Count; i < targetLevel; i++)
+            {
+                int previousXp = _experienceTable[i - 1];
+                int currentLevel = i + 1;
+
+                // For levels 1-10, this formula is not used.
+                // For level 11 (i=10), Math.Pow(..., 0) = 1.
+                double baseXP = 7800;
+                double growthRate = 1.042; // 4.2% increase per level
+                int additionalXp = (int)Math.Round(baseXP * Math.Pow(growthRate, currentLevel - 11) * this.ExperienceModifier);
+
+                int requiredXp = previousXp + additionalXp;
+                _experienceTable.Add(requiredXp);
+            }
         }
     }
 }

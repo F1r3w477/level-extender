@@ -13,6 +13,6 @@ namespace LevelExtender
 
     public class EXPEventArgs : EventArgs
     {
-        public int key { get; set; }
+        public int Key { get; set; }
     }
 }
