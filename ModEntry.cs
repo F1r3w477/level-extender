@@ -463,7 +463,17 @@ namespace LevelExtender
             // Calculate XP percentage for the progress bar
             int currentXpInLevel = skill.Experience - skill.GetRequiredExperienceForLevel(skill.Level - 1);
             int requiredXpForLevel = skill.GetRequiredExperienceForLevel(skill.Level) - skill.GetRequiredExperienceForLevel(skill.Level - 1);
-            if (requiredXpForLevel <= 0) requiredXpForLevel = 1;
+            #if DEBUG
+            if (requiredXpForLevel <= 0)
+            {
+                throw new InvalidOperationException($"Invalid experience calculation for {skill.Name} at level {skill.Level}. The XP required for this level was {requiredXpForLevel}, but it must be positive.");
+            }
+            #else
+            if (requiredXpForLevel <= 0)
+            {
+                requiredXpForLevel = 1;
+            }
+            #endif
 
             float xpPercent = Math.Clamp((float)currentXpInLevel / requiredXpForLevel, 0f, 1f);
             int fillWidth = (int)(BarFillWidth * xpPercent);
@@ -587,7 +597,10 @@ namespace LevelExtender
 
             // Give it a random object as a special drop.
             var objectData = Game1.content.Load<Dictionary<string, string>>("Data/Objects");
-            monster.objectsToDrop.Add(objectData.Keys.ElementAt(_random.Next(objectData.Count)));
+
+            var objectKeys = objectData.Keys.ToArray(); // Convert keys to an array.
+            string randomObjectId = objectKeys[_random.Next(objectKeys.Length)]; // Get a random item by index.
+            monster.objectsToDrop.Add(randomObjectId);
 
             monster.displayName += ": LE BOSS";
             monster.Scale *= (float)(1 + (_random.NextDouble() * combatLevel / 25.0));
