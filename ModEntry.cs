@@ -597,6 +597,9 @@ namespace LevelExtender
             monster.Health *= (1 + healthMultiplier);
 
             // Give it a random object as a special drop.
+            if (this._cachedObjectData is null)
+                return;
+
             this._cachedObjectKeys ??= this._cachedObjectData.Keys.ToArray();
 
             string randomObjectId = _cachedObjectKeys[_random.Next(_cachedObjectKeys.Length)];

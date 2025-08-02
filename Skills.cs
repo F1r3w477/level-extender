@@ -10,8 +10,8 @@ namespace LevelExtender
     /// </summary>
     public class Skill
     {
-        // A constant makes the code clearer than using the "magic number" 5.
         private const int VanillaSkillCount = 5;
+        private const int DefaultExperienceTableSize = 100;
 
         // Backing fields for properties are private and use _camelCase.
         private readonly ModEntry _mod;
@@ -130,7 +130,7 @@ namespace LevelExtender
 
             _experience = currentXp;
 
-            this.GenerateExperienceTable(101);
+            this.GenerateExperienceTable(DefaultExperienceTableSize);
 
             _level = this.GetLevelByExperience();
 
