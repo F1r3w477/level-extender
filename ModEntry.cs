@@ -30,11 +30,11 @@ namespace LevelExtender
         private LEModApi _api;
         private LEEvents _events;
 
-        private readonly Random _random = new();
+        private readonly Random _random = new((int)Game1.uniqueIDForThisGame);
         private readonly List<Skill> _skills = new();
         private readonly List<XPBar> _xpBars = new();
         private DateTime _lastRenderTime;
-        private Dictionary<string, string> _cachedObjectData;
+        private Dictionary<string, StardewValley.GameData.Objects.ObjectData> _cachedObjectData;
         private string[] _cachedObjectKeys;
 
         // Game state variables
@@ -210,9 +210,10 @@ namespace LevelExtender
 
             this.Monitor.Log($"Level Extender: Loaded {_skills.Count} skills.", LogLevel.Info);
 
-            // Don't forget to load your other per-save data
+            // Load other per-save data
             var saveData = this.Helper.Data.ReadSaveData<SaveDataModel>("LevelExtender-SaveData") ?? new SaveDataModel();
             _config.EnableWorldMonsters = saveData.EnableWorldMonsters;
+            _cachedObjectData = this.Helper.GameContent.Load<Dictionary<string, StardewValley.GameData.Objects.ObjectData>>("Data/Objects");
         }
 
         private void OnSaving(object sender, SavingEventArgs e)
@@ -596,7 +597,6 @@ namespace LevelExtender
             monster.Health *= (1 + healthMultiplier);
 
             // Give it a random object as a special drop.
-            this._cachedObjectData ??= Game1.content.Load<Dictionary<string, string>>("Data/Objects");
             this._cachedObjectKeys ??= this._cachedObjectData.Keys.ToArray();
 
             string randomObjectId = _cachedObjectKeys[_random.Next(_cachedObjectKeys.Length)];
