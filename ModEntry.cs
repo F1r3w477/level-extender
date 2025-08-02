@@ -214,6 +214,9 @@ namespace LevelExtender
 
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
+            // Unpatch all of this mod's Harmony patches.
+            _harmony.UnpatchAll(this.ModManifest.UniqueID);
+
             // Reset all state when returning to the main menu
             _skills.Clear();
             _xpBars.Clear();
