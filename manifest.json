@@ -1,13 +1,13 @@
 {
     "Name": "Level Extender",
     "Author": "Devin Lematty & F1r3w477",
-    "Version": "2.0.0",
-    "Description": "Extends profession levels to 100.",
+    "Version": "2.1.11",
+    "Description": "Extends profession levels to 100+.",
     "UniqueID": "Unidarkshin.LevelExtender",
     "EntryDll": "LevelExtender.dll",
     "MinimumApiVersion": "4.0.0",
     "UpdateKeys": [ 
-        "GitHub:F1r3w477/Stardew-Level-Extender",
+        "GitHub:F1r3w477/Level-Extender",
         "Nexus:1471" 
     ]
 }
