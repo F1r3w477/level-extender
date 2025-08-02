@@ -2,6 +2,7 @@ using StardewModdingAPI;
 using System;
 using System.Linq;
 using System.Text;
+using System.Collections.Generic;
 
 namespace LevelExtender
 {
@@ -102,12 +103,29 @@ namespace LevelExtender
             if (skill != null)
             {
                 var sb = new StringBuilder();
-                sb.AppendLine($"XP Table for {skill.Name} (Cumulative XP required):");
+                sb.AppendLine($"\nXP Table for {skill.Name} (Cumulative XP required):");
+
+                const int columns = 4;      // You can change this to 3 or 5 to adjust the width
+                const int cellWidth = 18;   // The width of each "Lvl X: YYYY" cell
+
+                var cells = new List<string>();
                 for (int i = 0; i < skill.ExperienceTable.Count; i++)
                 {
-                    sb.Append($"Lvl {i + 1}: {skill.ExperienceTable[i]}   ");
-                    if ((i + 1) % 5 == 0) sb.AppendLine();
+                    int level = i + 1;
+                    int requiredXp = skill.ExperienceTable[i];
+
+                    // Format the cell content and pad it to the fixed width
+                    string cellContent = $"Lvl {level}: {requiredXp}";
+                    cells.Add(cellContent.PadRight(cellWidth));
                 }
+
+                // Arrange the padded cells into rows
+                for (int i = 0; i < cells.Count; i += columns)
+                {
+                    var rowCells = cells.Skip(i).Take(columns);
+                    sb.AppendLine(string.Concat(rowCells));
+                }
+
                 this.Monitor.Log(sb.ToString(), LogLevel.Info);
             }
         }
