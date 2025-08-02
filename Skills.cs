@@ -25,7 +25,7 @@ namespace LevelExtender
 
         #region Properties
         // Properties use PascalCase and provide controlled access (encapsulation).
-        // 'private set' prevents other classes from changing these values directly.
+        // Access patterns vary: some properties have public setters, some have private setters, and some are read-only.
 
         /// <summary>Gets a value indicating whether this is a vanilla skill (Farming, Fishing, etc.).</summary>
         public bool IsVanillaSkill => this.Key < VanillaSkillCount;

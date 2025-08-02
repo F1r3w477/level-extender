@@ -56,6 +56,7 @@ namespace LevelExtender
         private const int ProgressBarOffsetY = 52;
         private const int FadeInDurationMs = 500;
         private const int FadeOutStartTimeMs = 4500;
+        private const int XpBarVisibleDurationSeconds = 5;
 
         #endregion
         
@@ -268,7 +269,7 @@ namespace LevelExtender
         {
             if (!Context.IsWorldReady) return;
 
-            _xpBars.RemoveAll(bar => (DateTime.Now - bar.CreationTime).TotalSeconds > 5);
+            _xpBars.RemoveAll(bar => (DateTime.Now - bar.CreationTime).TotalSeconds > XpBarVisibleDurationSeconds);
 
             SyncVanillaExperience();
 

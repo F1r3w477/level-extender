@@ -13,6 +13,9 @@ namespace LevelExtender
         private readonly ModConfig _config;
         private IMonitor Monitor => _modEntry.Monitor;
 
+        private const int Columns = 4;      // You can change this to 3 or 5 to adjust the width
+        private const int CellWidth = 18;   // The width of each "Lvl X: YYYY" cell
+
         public Commands(ModEntry modEntry, ModConfig config)
         {
             this._modEntry = modEntry;
@@ -104,10 +107,6 @@ namespace LevelExtender
             {
                 var sb = new StringBuilder();
                 sb.AppendLine($"\nXP Table for {skill.Name} (Cumulative XP required):");
-
-                const int columns = 4;      // You can change this to 3 or 5 to adjust the width
-                const int cellWidth = 18;   // The width of each "Lvl X: YYYY" cell
-
                 var cells = new List<string>();
                 for (int i = 0; i < skill.ExperienceTable.Count; i++)
                 {
@@ -116,13 +115,13 @@ namespace LevelExtender
 
                     // Format the cell content and pad it to the fixed width
                     string cellContent = $"Lvl {level}: {requiredXp}";
-                    cells.Add(cellContent.PadRight(cellWidth));
+                    cells.Add(cellContent.PadRight(CellWidth));
                 }
 
                 // Arrange the padded cells into rows
-                for (int i = 0; i < cells.Count; i += columns)
+                for (int i = 0; i < cells.Count; i += Columns)
                 {
-                    var rowCells = cells.Skip(i).Take(columns);
+                    var rowCells = cells.Skip(i).Take(Columns);
                     sb.AppendLine(string.Concat(rowCells));
                 }
 
