@@ -34,7 +34,7 @@ namespace LevelExtender
         public int Key { get; private set; }
 
         /// <summary>Gets the modifier for calculating required experience past level 10.</summary>
-        public double ExperienceModifier { get; private set; }
+        public double ExperienceModifier { get; set; }
 
         /// <summary>Gets a read-only view of the experience required for each level.</summary>
         public IReadOnlyList<int> ExperienceTable => _experienceTable;

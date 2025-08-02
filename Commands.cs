@@ -9,13 +9,13 @@ namespace LevelExtender
     internal class Commands
     {
         private readonly ModEntry _modEntry;
+        private readonly ModConfig _config;
         private IMonitor Monitor => _modEntry.Monitor;
-        // A helper property to safely access the config
-        private ModConfig Config => (ModConfig)this._modEntry.GetType().GetField("_config", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance).GetValue(this._modEntry);
 
-        public Commands(ModEntry modEntry)
+        public Commands(ModEntry modEntry, ModConfig config)
         {
             this._modEntry = modEntry;
+            this._config = config;
         }
 
         public void ShowExperienceSummary(string command, string[] args)
@@ -25,7 +25,6 @@ namespace LevelExtender
 
             foreach (var skill in this._modEntry.Skills)
             {
-                // Now this logic is much clearer. The XP for the next level is at index skill.Level.
                 int xpForNextLevel = skill.GetRequiredExperienceForLevel(skill.Level);
                 this.Monitor.Log($"{skill.Name,-10} | {skill.Level,-5} | {skill.Experience,-12} | {xpForNextLevel}", LogLevel.Info);
             }
@@ -63,23 +62,18 @@ namespace LevelExtender
             }
         }
 
-        // Replaces old 'wm_toggle' command
         public void ToggleWorldMonsters(string command, string[] args)
         {
-            var config = this.Config;
-            config.EnableWorldMonsters = !config.EnableWorldMonsters;
-            this.Monitor.Log($"Wilderness monster spawning for this save is now {(config.EnableWorldMonsters ? "ON" : "OFF")}.", LogLevel.Info);
+            _config.EnableWorldMonsters = !_config.EnableWorldMonsters;
+            this.Monitor.Log($"Wilderness monster spawning for this save is now {(_config.EnableWorldMonsters ? "ON" : "OFF")}.", LogLevel.Info);
         }
 
-        // Replaces old 'draw_bars' command
         public void ToggleDrawBars(string command, string[] args)
         {
-            var config = this.Config;
-            config.DrawXpBars = !config.DrawXpBars;
-            this.Monitor.Log($"XP bars will now be {(config.DrawXpBars ? "drawn" : "hidden")}.", LogLevel.Info);
+            _config.DrawXpBars = !_config.DrawXpBars;
+            this.Monitor.Log($"XP bars will now be {(_config.DrawXpBars ? "drawn" : "hidden")}.", LogLevel.Info);
         }
 
-        // Replaces old 'xp_m' command
         public void SetExperienceModifier(string command, string[] args)
         {
             if (args.Length < 2 || !double.TryParse(args[1], out double modifier) || modifier <= 0)
@@ -91,11 +85,11 @@ namespace LevelExtender
             var skill = GetSkill(args[0]);
             if (skill != null)
             {
+                skill.ExperienceModifier = modifier;
                 this.Monitor.Log($"XP Modifier for {skill.Name} set to {modifier}.", LogLevel.Info);
             }
         }
 
-        // Replaces old 'xp_table' command
         public void ShowSkillXpTable(string command, string[] args)
         {
             if (args.Length < 1)
@@ -118,15 +112,12 @@ namespace LevelExtender
             }
         }
 
-        // Replaces old 'draw_ein' command
         public void ToggleExtraItemNotifications(string command, string[] args)
         {
-            var config = this.Config;
-            config.DrawExtraItemNotifications = !config.DrawExtraItemNotifications;
-            this.Monitor.Log($"Extra item notifications will now be {(config.DrawExtraItemNotifications ? "shown" : "hidden")}.", LogLevel.Info);
+            _config.DrawExtraItemNotifications = !_config.DrawExtraItemNotifications;
+            this.Monitor.Log($"Extra item notifications will now be {(_config.DrawExtraItemNotifications ? "shown" : "hidden")}.", LogLevel.Info);
         }
 
-        // Replaces old 'min_ein_price' command
         public void SetMinNotificationPrice(string command, string[] args)
         {
              if (args.Length < 1 || !int.TryParse(args[0], out int price) || price < 0)
@@ -135,8 +126,7 @@ namespace LevelExtender
                 return;
             }
 
-            var config = this.Config;
-            config.MinItemPriceForNotifications = price;
+            _config.MinItemPriceForNotifications = price;
             this.Monitor.Log($"Minimum price for extra item notifications set to {price}g.", LogLevel.Info);
         }
 

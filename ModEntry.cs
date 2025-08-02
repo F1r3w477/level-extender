@@ -81,7 +81,7 @@ namespace LevelExtender
             );
 
             // Console Commands
-            var commands = new Commands(this);
+            var commands = new Commands(this, _config);
             helper.ConsoleCommands.Add("le_xp", "Shows a summary of your current levels and experience.", commands.ShowExperienceSummary);
             helper.ConsoleCommands.Add("le_setlevel", "Sets a skill level. Usage: le_setlevel <skill> <level>", commands.SetLevel);
             helper.ConsoleCommands.Add("le_setxp", "Sets a skill's XP. Usage: le_setxp <skill> <amount>", commands.SetExperience);
