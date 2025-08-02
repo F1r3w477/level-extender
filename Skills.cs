@@ -172,7 +172,7 @@ namespace LevelExtender
         private int GetLevelByExperience()
         {
             // First, ensure the table is large enough to contain our current XP.
-            while (_experienceTable.Any() && _experience >= _experienceTable.Last())
+            while (_experienceTable.Count > 0 && _experience >= _experienceTable.Last())
             {
                 GenerateExperienceTable(_experienceTable.Count + 10);
             }
