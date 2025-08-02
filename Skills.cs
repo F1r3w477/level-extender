@@ -27,6 +27,9 @@ namespace LevelExtender
         // Properties use PascalCase and provide controlled access (encapsulation).
         // 'private set' prevents other classes from changing these values directly.
 
+        /// <summary>Gets a value indicating whether this is a vanilla skill (Farming, Fishing, etc.).</summary>
+        public bool IsVanillaSkill => this.Key < VanillaSkillCount;
+
         /// <summary>Gets the display name of the skill.</summary>
         public string Name { get; private set; }
 
@@ -57,7 +60,7 @@ namespace LevelExtender
 
                 // Update the corresponding vanilla skill level in the game.
                 // A switch statement is cleaner than a long if/else if chain.
-                if (this.Key < VanillaSkillCount)
+                if (this.IsVanillaSkill)
                 {
                     switch (this.Key)
                     {
@@ -98,7 +101,7 @@ namespace LevelExtender
                 if (_experience == value) return;
 
                 _experience = value;
-                if (this.Key < VanillaSkillCount)
+                if (this.IsVanillaSkill)
                 {
                     Game1.player.experiencePoints[this.Key] = _experience;
                 }
@@ -138,7 +141,7 @@ namespace LevelExtender
             _level = this.GetLevelByExperience();
 
             // 4. For vanilla skills, sync BOTH the correct level and experience back to the game state.
-            if (this.Key < VanillaSkillCount)
+            if (this.IsVanillaSkill)
             {
                 Game1.player.experiencePoints[this.Key] = _experience;
                 switch (this.Key)
