@@ -207,9 +207,9 @@ namespace LevelExtender
         private void GenerateExperienceTable(int targetLevel)
         {
             // Use vanilla XP values for the first 10 levels if the table is empty.
-            if (_experienceTable.Count == 0 && _mod.DefaultRequiredXP.Any())
+            if (_experienceTable.Count == 0 && _mod.DefaultRequiredXp.Any())
             {
-                _experienceTable.AddRange(_mod.DefaultRequiredXP);
+                _experienceTable.AddRange(_mod.DefaultRequiredXp);
             }
 
             // Iteratively generate XP requirements for levels beyond the current table size.

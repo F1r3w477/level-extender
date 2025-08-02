@@ -50,7 +50,7 @@ namespace LevelExtender
         public IReadOnlyList<Skill> Skills => _skills;
 
         /// <summary>The default experience points required for the first 10 levels.</summary>
-        public readonly List<int> DefaultRequiredXP = new() { 100, 380, 770, 1300, 2150, 3300, 4800, 6900, 10000, 15000 };
+        public readonly List<int> DefaultRequiredXp = new() { 100, 380, 770, 1300, 2150, 3300, 4800, 6900, 10000, 15000 };
 
         #endregion
 
@@ -163,7 +163,7 @@ namespace LevelExtender
             // Add skills from the save file
             foreach (var skillData in skillDataList)
             {
-                var skill = new Skill(this, skillData.Name, skillData.Experience, skillData.ExperienceModifier, new List<int>(this.DefaultRequiredXP), GetCategoriesForSkill(skillData.Name));
+                var skill = new Skill(this, skillData.Name, skillData.Experience, skillData.ExperienceModifier, new List<int>(this.DefaultRequiredXp), GetCategoriesForSkill(skillData.Name));
                 _skills.Add(skill);
             }
 
@@ -173,7 +173,7 @@ namespace LevelExtender
             {
                 if (!loadedSkillNames.Contains(vanillaSkillNames[i]))
                 {
-                    var skill = new Skill(this, vanillaSkillNames[i], Game1.player.experiencePoints[i], 1.0, new List<int>(this.DefaultRequiredXP), GetCategoriesForSkill(vanillaSkillNames[i]));
+                    var skill = new Skill(this, vanillaSkillNames[i], Game1.player.experiencePoints[i], 1.0, new List<int>(this.DefaultRequiredXp), GetCategoriesForSkill(vanillaSkillNames[i]));
                     _skills.Add(skill);
                 }
             }
