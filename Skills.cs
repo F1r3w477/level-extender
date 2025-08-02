@@ -128,18 +128,13 @@ namespace LevelExtender
             this.ExperienceModifier = xpModifier ?? 1.0;
             this.Categories = categories ?? Array.Empty<int>();
 
-            // --- LOGIC CHANGE HIGHLIGHTED BELOW ---
-
-            // 1. Set the experience from the provided value. This is our source of truth.
             _experience = currentXp;
 
-            // 2. Generate the experience table so we can calculate the level.
             this.GenerateExperienceTable(101);
 
-            // 3. Calculate the correct initial level directly from the experience.
             _level = this.GetLevelByExperience();
 
-            // 4. For vanilla skills, sync BOTH the correct level and experience back to the game state.
+            // For vanilla skills, sync BOTH the correct level and experience back to the game state.
             if (this.IsVanillaSkill)
             {
                 Game1.player.experiencePoints[this.Key] = _experience;
