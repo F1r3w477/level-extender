@@ -599,7 +599,7 @@ namespace LevelExtender
         private Monster GetMonsterForTier(int tier, Vector2 position) => tier switch
         {
             0 => new DustSpirit(position),
-            1 => new Grub(position, true), // 'true' for hardy grubs
+            1 => new Grub(position, hard: true),
             2 => new Skeleton(position),
             3 => new RockCrab(position),
             4 => new Ghost(position),
