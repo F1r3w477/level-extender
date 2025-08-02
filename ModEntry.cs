@@ -114,9 +114,18 @@ namespace LevelExtender
 
             string skillsFilePath = $"data/{Constants.SaveFolderName}.json";
             List<SkillData> skillDataList = null;
+            JToken parsedJson = null;
 
             // Read the file generically to check its structure without crashing.
-            JToken parsedJson = this.Helper.Data.ReadJsonFile<JToken>(skillsFilePath);
+            try
+            {
+                parsedJson = this.Helper.Data.ReadJsonFile<JToken>(skillsFilePath);
+            }
+            catch (Exception ex)
+            {
+                this.Monitor.Log($"Failed to read or parse the skills data file at '{skillsFilePath}'. The file may be corrupted. Skill progress will be reset for this session. Error: {ex.Message}", LogLevel.Error);
+                parsedJson = null;
+            }
 
             if (parsedJson is JObject oldFormatObject && oldFormatObject.ContainsKey("skills"))
             {

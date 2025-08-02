@@ -216,20 +216,30 @@ namespace LevelExtender
                 _experienceTable.AddRange(_mod.DefaultRequiredXp);
             }
 
+            // If we already have enough levels, we don't need to do anything.
+            if (_experienceTable.Count >= targetLevel)
+            {
+                return;
+            }
+
+            // Get constant values outside the loop.
+            double baseXp = _mod.Config.LevelingCurveBaseExperience;
+            double growthRate = _mod.Config.LevelingCurveGrowthRate;
+            int startLevel = _experienceTable.Count + 1;
+
+            // Pre-calculate the initial power value ONCE before the loop.
+            double power = Math.Pow(growthRate, startLevel - customCurveStartLevel);
+
             // Iteratively generate XP requirements for levels beyond the current table size.
             for (int i = _experienceTable.Count; i < targetLevel; i++)
             {
                 int previousXp = _experienceTable[i - 1];
-                int currentLevel = i + 1;
-
-                // Use the new configurable values instead of magic numbers.
-                double baseXp = _mod.Config.LevelingCurveBaseExperience;
-                double growthRate = _mod.Config.LevelingCurveGrowthRate;
-
-                int additionalXp = (int)Math.Round(baseXp * Math.Pow(growthRate, currentLevel - customCurveStartLevel) * this.ExperienceModifier);
-
+                int additionalXp = (int)Math.Round(baseXp * power * this.ExperienceModifier);
                 int requiredXp = previousXp + additionalXp;
                 _experienceTable.Add(requiredXp);
+
+                // Update the power for the next loop iteration with a simple multiplication.
+                power *= growthRate;
             }
         }
     }
