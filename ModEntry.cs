@@ -397,15 +397,6 @@ namespace LevelExtender
             }
         }
 
-        private void TrySpawnWildernessMonster()
-        {
-            if (Game1.player.currentLocation.IsOutdoors && Game1.activeClickableMenu == null && _random.NextDouble() <= GetMonsterSpawnRate())
-            {
-                 // Monster spawning logic from your original code would go here
-                 // ...
-            }
-        }
-
         private void DrawExperienceBar(SpriteBatch b, XPBar bar, int index)
         {
             double elapsedSeconds = (_lastRenderTime == default) ? 0 : (DateTime.Now - _lastRenderTime).TotalSeconds;
@@ -474,12 +465,6 @@ namespace LevelExtender
             return Instance._random.NextDouble() < (skill.Level * baseRate);
         }
 
-        private static double GetMonsterSpawnRate()
-        {
-             // Monster spawn rate logic from your original code's S_R() method
-            return 0.01 + (Game1.player.CombatLevel * 0.0001);
-        }
-
         private static Rectangle GetIconRectForSkill(int key) => key switch
         {
             0 => new Rectangle(10, 428, 10, 10), // Farming
@@ -499,6 +484,141 @@ namespace LevelExtender
             "Combat" => new[] { -96, -98 },
             _ => Array.Empty<int>()
         };
+
+        #endregion
+
+        #region Monster Spawning
+
+        // --- Configuration Constants for Monster Spawning ---
+        // You can easily tweak these values here to change the game balance.
+        private const double BaseSpawnChance = 0.01;
+        private const double SpawnChancePerLevel = 0.0001;
+        private const double DarkOrRainySpawnMultiplier = 1.5;
+        private const int BossMonsterTier = 8;
+
+        /// <summary>Checks conditions and attempts to spawn a custom monster in the player's location.</summary>
+        private void TrySpawnWildernessMonster()
+        {
+            if (!Game1.player.currentLocation.IsOutdoors || Game1.activeClickableMenu != null || _random.NextDouble() > GetMonsterSpawnRate())
+            {
+                return; // Conditions not met, do nothing.
+            }
+
+            var combatSkill = _skills.FirstOrDefault(s => s.Key == 4);
+            if (combatSkill is null) return; // Should not happen, but a good safety check.
+
+            // Find a valid tile to spawn the monster on.
+            Vector2 spawnTile = Game1.player.currentLocation.getRandomTile();
+            while (!Game1.player.currentLocation.isTilePlaceable(spawnTile))
+            {
+                spawnTile = Game1.player.currentLocation.getRandomTile();
+            }
+
+            // --- Monster Generation ---
+            int tier = _random.Next(0, 9);
+            Monster monster = GetMonsterForTier(tier, spawnTile * Game1.tileSize);
+
+            // Apply stat modifications based on tier and player level.
+            if (tier == BossMonsterTier)
+            {
+                MakeMonsterABoss(monster, combatSkill.Level);
+                ApplyCombatLevelScaling(monster, combatSkill.Level, xpTier: 5); // Bosses use a fixed tier for XP scaling
+            }
+            else
+            {
+                ApplyCombatLevelScaling(monster, combatSkill.Level, xpTier: 1); // Normal monsters use a fixed tier for XP
+            }
+
+            // Add the fully modified monster to the world.
+            Game1.player.currentLocation.characters.Add(monster);
+            _totalMonstersSpawned++;
+        }
+
+        /// <summary>Modifies a standard monster into a more powerful boss variant.</summary>
+        private void MakeMonsterABoss(Monster monster, int combatLevel)
+        {
+            monster.resilience.Value += 20;
+            monster.Slipperiness += _random.Next(10) + 5;
+            monster.startGlowing(new Color(_random.Next(0, 255), _random.Next(0, 255), _random.Next(0, 255)), true, 1.0f);
+
+            // Bosses get a larger, random health multiplier.
+            int healthMultiplier = _random.Next(combatLevel / 2, Math.Max(combatLevel, 2) + 1);
+            monster.Health *= (1 + healthMultiplier);
+
+            // Give it a random object as a special drop.
+            var objectData = Game1.content.Load<Dictionary<string, string>>("Data/ObjectInformation");
+            monster.objectsToDrop.Add(objectData.Keys.ElementAt(_random.Next(objectData.Count)));
+
+            monster.displayName += ": LE BOSS";
+            monster.Scale *= (float)(1 + (_random.NextDouble() * combatLevel / 25.0));
+            Game1.chatBox.addMessage("A boss has spawned in your current location!", Color.DarkRed);
+        }
+
+        /// <summary>Applies stat boosts to a monster based on the player's combat level.</summary>
+        private void ApplyCombatLevelScaling(Monster monster, int combatLevel, int xpTier)
+        {
+            const double damageScalingDivisor = 1.5;
+            const int damageScalingPerLevel = 3;
+            const int healthScalingPerLevel = 4;
+            const int speedScalingPerLevel = 10;
+            const int resilienceScalingPerLevel = 10;
+            const int baseXpPerTier = 10;
+            const int bonusXpPerLevel = 2;
+
+            monster.DamageToFarmer = (int)(monster.DamageToFarmer / damageScalingDivisor) + (combatLevel / damageScalingPerLevel);
+            monster.Health *= (1 + combatLevel / healthScalingPerLevel);
+            monster.Speed += _random.Next((int)Math.Round(combatLevel / (double)speedScalingPerLevel) + 1);
+            monster.resilience.Value += (combatLevel / resilienceScalingPerLevel);
+            monster.ExperienceGained += (int)(monster.Health / 100.0) + ((baseXpPerTier + (combatLevel * bonusXpPerLevel)) * xpTier);
+
+            monster.focusedOnFarmers = true;
+            monster.wildernessFarmMonster = true;
+        }
+
+        /// <summary>Calculates the chance for a monster to spawn this tick.</summary>
+        private double GetMonsterSpawnRate()
+        {
+            var combatSkill = _skills.FirstOrDefault(s => s.Key == 4);
+            if (combatSkill is null || combatSkill.Level == 0) return 0.0;
+
+            double spawnRate = BaseSpawnChance + (combatSkill.Level * SpawnChancePerLevel);
+            if (Game1.isDarkOut(Game1.player.currentLocation) || Game1.isRaining)
+            {
+                spawnRate *= DarkOrRainySpawnMultiplier;
+            }
+            return spawnRate;
+        }
+
+        /// <summary>Gets a new monster instance based on a tier number.</summary>
+        private Monster GetMonsterForTier(int tier, Vector2 position) => tier switch
+        {
+            0 => new DustSpirit(position),
+            1 => new Grub(position, true), // 'true' for hardy grubs
+            2 => new Skeleton(position),
+            3 => new RockCrab(position),
+            4 => new Ghost(position),
+            5 => new GreenSlime(position),
+            6 => new RockGolem(position),
+            7 => new ShadowBrute(position),
+            8 => GetBossMonster(position), // Tier 8 specifically creates a boss
+            _ => new GreenSlime(position),
+        };
+
+        /// <summary>Gets a new base monster to be turned into a boss.</summary>
+        private Monster GetBossMonster(Vector2 position)
+        {
+            int combatLevel = _skills.FirstOrDefault(s => s.Key == 4)?.Level ?? 0;
+            int choice = _random.Next(1, 6);
+            return choice switch
+            {
+                1 => new RockCrab(position, "Iridium Crab"),
+                2 => new Ghost(position, "Carbon Ghost"),
+                3 => new RockCrab(position, "Lava Crab"),
+                4 => new GreenSlime(position, Math.Max(combatLevel * 5, 50)),
+                5 => new BigSlime(position, Math.Max(combatLevel * 5, 50)),
+                _ => new Mummy(position),
+            };
+        }
 
         #endregion
 
