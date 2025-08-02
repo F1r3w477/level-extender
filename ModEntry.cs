@@ -46,6 +46,9 @@ namespace LevelExtender
         
         #region Properties
 
+        /// <summary>Provides access to the user-configurable settings.</summary>
+        public ModConfig Config => _config;
+
         /// <summary>Provides controlled, read-only access to the list of active skills.</summary>
         public IReadOnlyList<Skill> Skills => _skills;
 

@@ -29,5 +29,15 @@ namespace LevelExtender
         /// This acts as the default value for new save files.
         /// </summary>
         public bool EnableWorldMonsters { get; set; } = false;
+
+        /// <summary>
+        /// The base amount of additional XP required to go from level 10 to 11.
+        /// </summary>
+        public double LevelingCurveBaseExperience { get; set; } = 7800;
+
+        /// <summary>
+        /// The percentage increase in required XP for each level after 10. (e.g., 1.042 is a 4.2% increase per level).
+        /// </summary>
+        public double LevelingCurveGrowthRate { get; set; } = 1.042;
     }
 }

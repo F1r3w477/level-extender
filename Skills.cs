@@ -73,13 +73,12 @@ namespace LevelExtender
                 // If it was triggered by an XP gain, this block is skipped to preserve the current XP.
                 if (!_isLevelingViaExperience)
                 {
-                    int requiredXp = this.GetRequiredExperienceForLevel(_level);
-                    // Directly set the backing field to avoid triggering the setter's logic again.
-                    _experience = requiredXp;
-                    if (this.Key < VanillaSkillCount)
-                    {
-                        Game1.player.experiencePoints[this.Key] = requiredXp;
-                    }
+                    // Get the XP required for the START of the current level.
+                    // A level of 0 has 0 XP.
+                    int requiredXp = (_level > 0) ? this.GetRequiredExperienceForLevel(_level - 1) : 0;
+
+                    // Set the Experience property, which handles all other updates.
+                    this.Experience = requiredXp;
                 }
 
                 // Reset the flag after the operation is complete.
@@ -200,12 +199,14 @@ namespace LevelExtender
             return _experienceTable[levelIndex];
         }
 
-
         /// <summary>
         /// Populates the experience table up to a specified level.
         /// </summary>
         private void GenerateExperienceTable(int targetLevel)
         {
+            // A named constant is clearer than the number 11.
+            const int customCurveStartLevel = 11;
+
             // Use vanilla XP values for the first 10 levels if the table is empty.
             if (_experienceTable.Count == 0 && _mod.DefaultRequiredXp.Any())
             {
@@ -218,11 +219,11 @@ namespace LevelExtender
                 int previousXp = _experienceTable[i - 1];
                 int currentLevel = i + 1;
 
-                // For levels 1-10, this formula is not used.
-                // For level 11 (i=10), Math.Pow(..., 0) = 1.
-                double baseXP = 7800;
-                double growthRate = 1.042; // 4.2% increase per level
-                int additionalXp = (int)Math.Round(baseXP * Math.Pow(growthRate, currentLevel - 11) * this.ExperienceModifier);
+                // Use the new configurable values instead of magic numbers.
+                double baseXp = _mod.Config.LevelingCurveBaseExperience;
+                double growthRate = _mod.Config.LevelingCurveGrowthRate;
+
+                int additionalXp = (int)Math.Round(baseXp * Math.Pow(growthRate, currentLevel - customCurveStartLevel) * this.ExperienceModifier);
 
                 int requiredXp = previousXp + additionalXp;
                 _experienceTable.Add(requiredXp);
