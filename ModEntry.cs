@@ -541,8 +541,6 @@ namespace LevelExtender
 
         // --- Configuration Constants for Monster Spawning ---
         // You can easily tweak these values here to change the game balance.
-        private const double BaseSpawnChance = 0.01;
-        private const double SpawnChancePerLevel = 0.0001;
         private const double DarkOrRainySpawnMultiplier = 1.5;
         private const int BossMonsterTier = 8;
 
@@ -634,7 +632,7 @@ namespace LevelExtender
             var combatSkill = _skills.FirstOrDefault(s => s.Key == 4);
             if (combatSkill is null || combatSkill.Level == 0) return 0.0;
 
-            double spawnRate = BaseSpawnChance + (combatSkill.Level * SpawnChancePerLevel);
+            double spawnRate = _config.BaseSpawnChance + (combatSkill.Level * _config.SpawnChancePerLevel);
             if (Game1.isDarkOut(Game1.player.currentLocation) || Game1.isRaining)
             {
                 spawnRate *= DarkOrRainySpawnMultiplier;

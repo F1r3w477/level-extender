@@ -39,5 +39,14 @@ namespace LevelExtender
         /// The percentage increase in required XP for each level after 10. (e.g., 1.042 is a 4.2% increase per level).
         /// </summary>
         public double LevelingCurveGrowthRate { get; set; } = 1.042;
+
+        /// <summary>The number of columns to use when displaying the `le_xp_table` command.</summary>
+        public int TableColumns { get; set; } = 4;
+
+        /// <summary>The base chance for a monster to spawn each second (e.g., 0.01 is a 1% chance).</summary>
+        public double BaseSpawnChance { get; set; } = 0.01;
+
+        /// <summary>The bonus chance for a monster to spawn for each combat level the player has.</summary>
+        public double SpawnChancePerLevel { get; set; } = 0.0001;
     }
 }

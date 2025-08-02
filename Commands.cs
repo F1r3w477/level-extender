@@ -13,7 +13,6 @@ namespace LevelExtender
         private readonly ModConfig _config;
         private IMonitor Monitor => _modEntry.Monitor;
 
-        private const int Columns = 4;      // You can change this to 3 or 5 to adjust the width
         private const int CellWidth = 18;   // The width of each "Lvl X: YYYY" cell
 
         public Commands(ModEntry modEntry, ModConfig config)
@@ -96,6 +95,7 @@ namespace LevelExtender
 
         public void ShowSkillXpTable(string command, string[] args)
         {
+            int columns = _config.TableColumns;
             if (args.Length < 1)
             {
                 this.Monitor.Log("Command failed. Usage: le_xp_table <skillname>.", LogLevel.Error);
@@ -119,9 +119,9 @@ namespace LevelExtender
                 }
 
                 // Arrange the padded cells into rows
-                for (int i = 0; i < cells.Count; i += Columns)
+                for (int i = 0; i < cells.Count; i += columns)
                 {
-                    var rowCells = cells.Skip(i).Take(Columns);
+                    var rowCells = cells.Skip(i).Take(columns);
                     sb.AppendLine(string.Concat(rowCells));
                 }
 
