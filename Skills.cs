@@ -205,6 +205,7 @@ namespace LevelExtender
         /// <summary>
         /// Populates the experience table up to a specified level.
         /// </summary>
+        /// <param name="targetLevel">The target number of levels to generate in the experience table.</param>
         private void GenerateExperienceTable(int targetLevel)
         {
             // A named constant is clearer than the number 11.

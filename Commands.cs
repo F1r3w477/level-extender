@@ -138,7 +138,7 @@ namespace LevelExtender
 
         public void SetMinNotificationPrice(string command, string[] args)
         {
-             if (args.Length < 1 || !int.TryParse(args[0], out int price) || price < 0)
+            if (args.Length < 1 || !int.TryParse(args[0], out int price) || price < 0)
             {
                 this.Monitor.Log("Command failed. Usage: le_min_notification_price <amount>.", LogLevel.Error);
                 return;
