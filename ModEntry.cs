@@ -42,6 +42,21 @@ namespace LevelExtender
         private bool _disableMonsterSpawningThisSession;
         private int _totalMonstersSpawned;
 
+        // UI Constants for the experience bar
+        private const int BarStartX = 8;
+        private const int BarStartYBase = 8;
+        private const int BarWidth = 280;
+        private const int BarHeight = 72;
+        private const int BarFillWidth = 240;
+        private const int BarIconPadding = 16;
+        private const int BarTextOffsetX = 68;
+        private const int BarTextOffsetY = 22;
+        private const int BarTextPaddingRight = 20;
+        private const int ProgressBarOffsetX = 20;
+        private const int ProgressBarOffsetY = 52;
+        private const int FadeInDurationMs = 500;
+        private const int FadeOutStartTimeMs = 4500;
+
         #endregion
         
         #region Properties
@@ -414,40 +429,48 @@ namespace LevelExtender
 
         private void DrawExperienceBar(SpriteBatch b, XPBar bar, int index)
         {
+            // --- Timing and Transparency ---
             double elapsedSeconds = (_lastRenderTime == default) ? 0 : (DateTime.Now - _lastRenderTime).TotalSeconds;
             bar.HighlightTimer = Math.Max(0, bar.HighlightTimer - (float)elapsedSeconds);
 
             double fadeTime = (DateTime.Now - bar.CreationTime).TotalMilliseconds;
             float transparency = 1f;
-            if (fadeTime < 500) transparency = (float)(fadeTime / 500.0);
-            else if (fadeTime > 4500) transparency = 1 - ((float)(fadeTime - 4500) / 500.0f);
+            if (fadeTime < FadeInDurationMs)
+                transparency = (float)(fadeTime / FadeInDurationMs);
+            else if (fadeTime > FadeOutStartTimeMs)
+                transparency = 1 - ((float)(fadeTime - FadeOutStartTimeMs) / FadeInDurationMs);
 
             if (transparency <= 0) return;
 
-            int startX = 8, startY = 8 + (index * 72), width = 280, height = 72, barWidth = 240;
 
-            IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), startX, startY, width, height, Color.White * transparency, 4f, true);
+            // --- Layout Calculations using Constants ---
+            int startX = BarStartX;
+            int startY = BarStartYBase + (index * BarHeight);
+
+            IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), startX, startY, BarWidth, BarHeight, Color.White * transparency, 4f, true);
 
             Skill skill = bar.Skill;
             Rectangle iconRect = GetIconRectForSkill(skill.Key);
-            b.Draw(Game1.mouseCursors, new Vector2(startX + 16, startY + 16), iconRect, Color.White * transparency, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+            b.Draw(Game1.mouseCursors, new Vector2(startX + BarIconPadding, startY + BarIconPadding), iconRect, Color.White * transparency, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
 
             Color levelTextColor = bar.HighlightTimer > 0 ? Color.LimeGreen : Game1.textColor;
             string levelText = $"Lvl {skill.Level}";
-            Utility.drawTextWithShadow(b, skill.Name, Game1.smallFont, new Vector2(startX + 68, startY + 22), Game1.textColor * transparency);
-            Utility.drawTextWithShadow(b, levelText, Game1.smallFont, new Vector2(startX + width - Game1.smallFont.MeasureString(levelText).X - 20, startY + 22), levelTextColor * transparency);
+            Utility.drawTextWithShadow(b, skill.Name, Game1.smallFont, new Vector2(startX + BarTextOffsetX, startY + BarTextOffsetY), Game1.textColor * transparency);
+            Utility.drawTextWithShadow(b, levelText, Game1.smallFont, new Vector2(startX + BarWidth - Game1.smallFont.MeasureString(levelText).X - BarTextPaddingRight, startY + BarTextOffsetY), levelTextColor * transparency);
 
+            // Calculate XP percentage for the progress bar
             int currentXpInLevel = skill.Experience - skill.GetRequiredExperienceForLevel(skill.Level - 1);
             int requiredXpForLevel = skill.GetRequiredExperienceForLevel(skill.Level) - skill.GetRequiredExperienceForLevel(skill.Level - 1);
             if (requiredXpForLevel <= 0) requiredXpForLevel = 1;
 
             float xpPercent = Math.Clamp((float)currentXpInLevel / requiredXpForLevel, 0f, 1f);
-            int fillWidth = (int)(barWidth * xpPercent);
+            int fillWidth = (int)(BarFillWidth * xpPercent);
 
-            b.Draw(Game1.staminaRect, new Rectangle(startX + 20, startY + 52, barWidth, 12), Color.Black * 0.35f);
+            // Draw the progress bar
+            b.Draw(Game1.staminaRect, new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, BarFillWidth, 12), Color.Black * 0.35f);
             if (fillWidth > 0)
             {
-                 b.Draw(Game1.staminaRect, new Rectangle(startX + 20, startY + 52, fillWidth, 12), new Color(15, 122, 255));
+                 b.Draw(Game1.staminaRect, new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, fillWidth, 12), new Color(15, 122, 255));
             }
         }
 
@@ -561,7 +584,7 @@ namespace LevelExtender
             monster.Health *= (1 + healthMultiplier);
 
             // Give it a random object as a special drop.
-            var objectData = Game1.content.Load<Dictionary<string, string>>("Data/ObjectInformation");
+            var objectData = Game1.content.Load<Dictionary<string, string>>("Data/Objects");
             monster.objectsToDrop.Add(objectData.Keys.ElementAt(_random.Next(objectData.Count)));
 
             monster.displayName += ": LE BOSS";
