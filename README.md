@@ -35,6 +35,6 @@ This mod was originally created by unidarkshin. It is now primarily maintained b
 ## Installation
 
 1.  Install the latest version of [SMAPI](https://smapi.io).
-2.  Download the latest version of this mod from the [Releases page](https://github.com/F1r3w477/Stardew-Level-Extender/releases) (replace with your repo URL).
+2.  Download the latest version of this mod from the [Releases page](https://github.com/F1r3w477/Level-Extender/releases).
 3.  Unzip the downloaded file into your `Stardew Valley/Mods` folder.
 4.  Run the game using SMAPI!
