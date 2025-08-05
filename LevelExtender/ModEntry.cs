@@ -26,12 +26,12 @@ namespace LevelExtender
         public static ModEntry Instance { get; private set; }
 
         private Harmony _harmony;
-        private ModConfig _config;
+        internal ModConfig _config;
         private LEModApi _api;
         private LEEvents _events;
 
         private readonly Random _random = new((int)Game1.uniqueIDForThisGame);
-        private readonly List<Skill> _skills = new();
+        internal readonly List<Skill> _skills = new();
         private readonly List<XPBar> _xpBars = new();
         private DateTime _lastRenderTime;
         private Dictionary<string, StardewValley.GameData.Objects.ObjectData> _cachedObjectData;
@@ -61,7 +61,7 @@ namespace LevelExtender
         private const int XpBarVisibleDurationSeconds = 5;
 
         #endregion
-        
+
         #region Properties
 
         /// <summary>Provides access to the user-configurable settings.</summary>
@@ -498,7 +498,7 @@ namespace LevelExtender
         {
             _disableMonsterSpawningThisSession = true;
             int removedCount = 0;
-            
+
             foreach (GameLocation location in Game1.locations)
             {
                 removedCount += location.characters.RemoveWhere(c => c.IsMonster && ((Monster)c).wildernessFarmMonster);
