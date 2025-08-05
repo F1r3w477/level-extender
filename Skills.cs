@@ -8,7 +8,7 @@ namespace LevelExtender
     /// <summary>
     /// Represents a player skill, handling its level, experience, and interactions with the game.
     /// </summary>
-    public class Skill
+    public class Skill : ISkillApi
     {
         private const int VanillaSkillCount = 5;
         private const int DefaultExperienceTableSize = 100;
@@ -210,23 +210,6 @@ namespace LevelExtender
         }
 
         /// <summary>
-        /// Gets the total experience points required to reach a given level.
-        /// </summary>
-        /// <param name="levelIndex">The target level (e.g., level 1, 10, 50).</param>
-        /// <returns>The total experience points needed.</returns>
-        public int GetRequiredExperienceForLevel(int levelIndex)
-        {
-            if (levelIndex < 0) return 0;
-
-            if (_experienceTable.Count <= levelIndex)
-            {
-                GenerateExperienceTable(levelIndex + 1);
-            }
-
-            return _experienceTable[levelIndex];
-        }
-
-        /// <summary>
         /// Populates the experience table up to a specified level.
         /// </summary>
         /// <param name="targetLevel">The target number of levels to generate in the experience table.</param>
@@ -267,5 +250,28 @@ namespace LevelExtender
                 power *= growthRate;
             }
         }
+        #region Public Methods
+
+        public void AddExperience(int amount)
+        {
+            if (amount > 0)
+            {
+                this.Experience += amount;
+            }
+        }
+
+        public int GetRequiredExperienceForLevel(int levelIndex)
+        {
+            if (levelIndex < 0) return 0;
+
+            if (_experienceTable.Count <= levelIndex)
+            {
+                GenerateExperienceTable(levelIndex + 1);
+            }
+
+            return _experienceTable[levelIndex];
+        }
+
+        #endregion
     }
 }

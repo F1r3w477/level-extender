@@ -4,89 +4,78 @@ using System.Linq;
 
 namespace LevelExtender
 {
-    /// <summary>
-    /// The public API for Level Extender, allowing other mods to interact with its skill system.
-    /// </summary>
-    public sealed class LEModApi
+    /// <summary>Defines the public contract for a skill that other mods can interact with.</summary>
+    public interface ISkillApi
+    {
+        /// <summary>Gets the unique name of the skill.</summary>
+        string Name { get; }
+
+        /// <summary>Gets or sets the current level of the skill. Setting this value will automatically update the experience to match.</summary>
+        int Level { get; set; }
+
+        /// <summary>Gets or sets the current experience of the skill. Setting this value will automatically update the level to match.</summary>
+        int Experience { get; set; }
+
+        /// <summary>Gets or sets the experience multiplier used for levels beyond 10.</summary>
+        double ExperienceModifier { get; set; }
+
+        /// <summary>Adds a specified amount of experience to the skill.</summary>
+        /// <param name="amount">The non-negative amount of experience to add.</param>
+        void AddExperience(int amount);
+    }
+
+    /// <summary>The public API for Level Extender, allowing other mods to interact with its skill system.</summary>
+    public interface ILevelExtenderApi
+    {
+        /// <summary>An event that is raised whenever experience is changed for any skill.</summary>
+        event EventHandler<EXPEventArgs> OnXPChanged;
+
+        /// <summary>
+        /// Registers a new custom skill with the Level Extender system.
+        /// This should be called once, preferably in the GameLoop.SaveLoaded event.
+        /// </summary>
+        void InitializeSkill(string name, int currentXp, double? xpModifier = null, List<int> xpTable = null, int[] itemCategories = null);
+
+        /// <summary>Gets an API wrapper for a specific skill by name.</summary>
+        /// <param name="name">The name of the skill.</param>
+        /// <returns>An <see cref="ISkillApi"/> instance for the skill, or <c>null</c> if the skill is not found.</returns>
+        ISkillApi GetSkill(string name);
+
+        /// <summary>Gets an API wrapper for all registered skills.</summary>
+        /// <returns>An enumerable collection of all registered skills.</returns>
+        IEnumerable<ISkillApi> GetAllSkills();
+    }
+
+    // This is the internal implementation class that you pass to SMAPI.
+    public sealed class LEModApi : ILevelExtenderApi
     {
         private readonly ModEntry _modEntry;
 
-        /// <summary>Internal constructor.</summary>
-        /// <param name="modEntry">The instance of the main mod class.</param>
         internal LEModApi(ModEntry modEntry)
         {
             _modEntry = modEntry;
         }
 
-        #region Events
-
-        /// <summary>An event that is raised whenever experience is changed for any skill.</summary>
         public event EventHandler<EXPEventArgs> OnXPChanged
         {
             add => _modEntry.Events.OnXPChanged += value;
             remove => _modEntry.Events.OnXPChanged -= value;
         }
 
-        #endregion
-
-        #region Skill Management
-
-        /// <summary>
-        /// Registers a new custom skill with the Level Extender system.
-        /// This should be called once, preferably in the GameLoop.SaveLoaded event.
-        /// </summary>
-        /// <param name="name">The unique name of the skill (e.g., "Cooking").</param>
-        /// <param name="currentXp">The player's current XP for this skill.</param>
-        /// <param name="xpModifier">An optional modifier for XP calculations past level 10.</param>
-        /// <param name="xpTable">An optional custom XP table. If null, defaults will be used.</param>
-        /// <param name="itemCategories">An optional array of Stardew Valley item category IDs that this skill affects.</param>
         public void InitializeSkill(string name, int currentXp, double? xpModifier = null, List<int> xpTable = null, int[] itemCategories = null)
         {
             _modEntry.InitializeSkill(name, currentXp, xpModifier, xpTable, itemCategories);
         }
 
-        /// <summary>Gets the current level for a specific skill.</summary>
-        /// <param name="name">The name of the skill.</param>
-        /// <returns>The skill's current level, or -1 if the skill is not found.</returns>
-        public int GetSkillLevel(string name)
+        public ISkillApi GetSkill(string name)
         {
-            var skill = _modEntry.Skills.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-            return skill?.Level ?? -1;
+            // The lookup logic now only exists in one place.
+            return _modEntry.Skills.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
         }
 
-        /// <summary>Gets the current total experience for a specific skill.</summary>
-        /// <param name="name">The name of the skill.</param>
-        /// <returns>The skill's current experience, or -1 if the skill is not found.</returns>
-        public int GetSkillExperience(string name)
+        public IEnumerable<ISkillApi> GetAllSkills()
         {
-            var skill = _modEntry.Skills.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-            return skill?.Experience ?? -1;
+            return _modEntry.Skills;
         }
-
-        /// <summary>Adds a specified amount of experience to a skill.</summary>
-        /// <param name="name">The name of the skill.</param>
-        /// <param name="amount">The amount of experience to add.</param>
-        public void AddExperience(string name, int amount)
-        {
-            var skill = _modEntry.Skills.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-            if (skill != null && amount > 0)
-            {
-                skill.Experience += amount;
-            }
-        }
-
-        /// <summary>Sets the level for a skill directly, adjusting XP to the minimum for that level.</summary>
-        /// <param name="name">The name of the skill.</param>
-        /// <param name="level">The level to set.</param>
-        public void SetSkillLevel(string name, int level)
-        {
-            var skill = _modEntry.Skills.FirstOrDefault(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-            if (skill != null && level >= 0)
-            {
-                skill.Level = level;
-            }
-        }
-
-        #endregion
     }
 }
