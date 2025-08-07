@@ -5,6 +5,7 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Menus;
 using StardewValley.Monsters;
+using StardewValley.GameData.Objects;
 using StardewValley.TerrainFeatures;
 using StardewValley.Tools;
 using System;
@@ -28,10 +29,10 @@ namespace LevelExtender
         private Harmony _harmony;
         internal ModConfig _config;
         private LEModApi _api;
-        private LEEvents _events;
+        private LEEvents _events = new LEEvents();
 
         private readonly Random _random = new((int)Game1.uniqueIDForThisGame);
-        internal readonly List<Skill> _skills = new();
+        internal List<Skill> _skills = new();
         private readonly List<XPBar> _xpBars = new();
         private DateTime _lastRenderTime;
         private Dictionary<string, StardewValley.GameData.Objects.ObjectData> _cachedObjectData;
@@ -128,32 +129,26 @@ namespace LevelExtender
         {
             _skills.Clear();
 
-            // --- Data Migration Logic Starts Here ---
-
+            // --- Data Migration Logic ---
             string skillsFilePath = $"data/{Constants.SaveFolderName}.json";
             List<SkillData> skillDataList = null;
             JToken parsedJson = null;
 
-            // Read the file generically to check its structure without crashing.
             try
             {
                 parsedJson = this.Helper.Data.ReadJsonFile<JToken>(skillsFilePath);
             }
             catch (Exception ex)
             {
-                this.Monitor.Log($"Failed to read or parse the skills data file at '{skillsFilePath}'. The file may be corrupted. Skill progress will be reset for this session. Error: {ex.Message}", LogLevel.Error);
-                parsedJson = null;
+                this.Monitor?.Log($"Failed to read or parse skills data file at '{skillsFilePath}'. The file may be corrupted. Skill progress will be reset for this session. Error: {ex.Message}", LogLevel.Error);
             }
 
             if (parsedJson is JObject oldFormatObject && oldFormatObject.ContainsKey("skills"))
             {
-                // OLD FORMAT DETECTED: It's an object with a "skills" property. Let's migrate it.
-                this.Monitor.Log("Old save data format detected. Migrating to new format...", LogLevel.Info);
+                this.Monitor?.Log("Old save data format detected. Migrating to new format...", LogLevel.Info);
                 skillDataList = new List<SkillData>();
 
-                // Get the list of skill strings (e.g., "Farming,15000,1.0")
-                JArray oldSkillsArray = oldFormatObject["skills"] as JArray;
-                if (oldSkillsArray != null)
+                if (oldFormatObject["skills"] is JArray oldSkillsArray)
                 {
                     foreach (var skillString in oldSkillsArray)
                     {
@@ -170,34 +165,27 @@ namespace LevelExtender
                         }
                         catch (Exception ex)
                         {
-                            this.Monitor.Log($"Could not parse an old skill entry ('{skillString}'). It will be skipped. Error: {ex.Message}", LogLevel.Error);
+                            this.Monitor?.Log($"Could not parse an old skill entry ('{skillString}'). It will be skipped. Error: {ex.Message}", LogLevel.Error);
                         }
                     }
                 }
             }
             else if (parsedJson is JArray newFormatArray)
             {
-                // NEW FORMAT DETECTED: It's already an array, so deserialize it normally.
                 skillDataList = newFormatArray.ToObject<List<SkillData>>();
             }
 
-            // If the file didn't exist or was empty, initialize an empty list.
             skillDataList ??= new List<SkillData>();
 
-            // --- Data Migration Logic Ends Here ---
-
-
-            // The rest of the method proceeds normally using the 'skillDataList' we now have.
+            // --- Skill Initialization ---
             var loadedSkillNames = new HashSet<string>(skillDataList.Select(s => s.Name));
 
-            // Add skills from the save file
             foreach (var skillData in skillDataList)
             {
                 var skill = new Skill(this, skillData.Name, skillData.Experience, skillData.ExperienceModifier, new List<int>(this.DefaultRequiredXp), GetCategoriesForSkill(skillData.Name));
                 _skills.Add(skill);
             }
 
-            // Add any missing vanilla skills
             string[] vanillaSkillNames = { "Farming", "Fishing", "Foraging", "Mining", "Combat" };
             for (int i = 0; i < vanillaSkillNames.Length; i++)
             {
@@ -208,12 +196,16 @@ namespace LevelExtender
                 }
             }
 
-            this.Monitor.Log($"Level Extender: Loaded {_skills.Count} skills.", LogLevel.Info);
+            this.Monitor?.Log($"Level Extender: Loaded {_skills.Count} skills.", LogLevel.Info);
 
-            // Load other per-save data
             var saveData = this.Helper.Data.ReadSaveData<SaveDataModel>("LevelExtender-SaveData") ?? new SaveDataModel();
             _config.EnableWorldMonsters = saveData.EnableWorldMonsters;
-            _cachedObjectData = this.Helper.GameContent.Load<Dictionary<string, StardewValley.GameData.Objects.ObjectData>>("Data/Objects");
+
+            // Pre-load game assets
+            _cachedObjectData = this.Helper.GameContent.Load<Dictionary<string, ObjectData>>("Data/Objects");
+
+            // Perform initial sync to make sure Game1.player is up to date with loaded data.
+            this.SyncSkillsToGame();
         }
 
         private void OnSaving(object sender, SavingEventArgs e)
@@ -298,10 +290,13 @@ namespace LevelExtender
             var skill = _skills.FirstOrDefault(s => s.Key == e.Key);
             if (skill is null) return;
 
+            // Update UI
             _xpBars.RemoveAll(bar => bar.Skill.Key == e.Key);
-
             _xpBars.Add(new XPBar(skill));
             _xpBars.Sort((a, b) => a.CreationTime.CompareTo(b.CreationTime));
+
+            // Sync our skill data TO the game state
+            this.SyncSkillsToGame();
         }
 
         #endregion
@@ -503,7 +498,7 @@ namespace LevelExtender
             {
                 removedCount += location.characters.RemoveWhere(c => c.IsMonster && ((Monster)c).wildernessFarmMonster);
             }
-            this.Monitor.Log($"Removed {removedCount} / {_totalMonstersSpawned} wilderness monsters.", LogLevel.Info);
+            this.Monitor?.Log($"Removed {removedCount} / {_totalMonstersSpawned} wilderness monsters.", LogLevel.Info);
             _totalMonstersSpawned = 0;
         }
 
@@ -679,6 +674,34 @@ namespace LevelExtender
 
         #endregion
 
+        #region Synchronization Methods
+
+        /// <summary>Syncs the state of the internal Skill objects TO the live Game1.player object.</summary>
+        private void SyncSkillsToGame()
+        {
+            if (!Context.IsWorldReady) return;
+
+            foreach (var skill in _skills)
+            {
+                if (skill.IsVanillaSkill)
+                {
+                    // This is the logic we moved out of Skill.cs
+                    switch (skill.Key)
+                    {
+                        case 0: Game1.player.farmingLevel.Value = skill.Level; break;
+                        case 1: Game1.player.fishingLevel.Value = skill.Level; break;
+                        case 2: Game1.player.foragingLevel.Value = skill.Level; break;
+                        case 3: Game1.player.miningLevel.Value = skill.Level; break;
+                        case 4: Game1.player.combatLevel.Value = skill.Level; break;
+                    }
+                    if (Game1.player.experiencePoints[skill.Key] != skill.Experience)
+                        Game1.player.experiencePoints[skill.Key] = skill.Experience;
+                }
+            }
+        }
+
+        #endregion
+
         #region Public API Methods
 
         /// <summary>Initializes and registers a new skill. This is intended to be called by other mods through the API.</summary>
@@ -687,18 +710,21 @@ namespace LevelExtender
             // Check if a skill with this name already exists to prevent duplicates.
             if (_skills.Any(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
             {
-                this.Monitor.Log($"A skill with the name '{name}' has already been initialized. Skipping.", LogLevel.Warn);
+                this.Monitor?.Log($"A skill with the name '{name}' has already been initialized. Skipping.", LogLevel.Warn);
                 return;
             }
 
+            // Provide safe defaults when running outside the game/without SMAPI context.
+            var effectiveTable = xpTable ?? new List<int>(this.DefaultRequiredXp);
+            var effectiveCategories = itemCategories ?? GetCategoriesForSkill(name);
+
             // Create the new skill and add it to the list.
-            var newSkill = new Skill(this, name, currentXp, xpModifier, xpTable, itemCategories);
+            var newSkill = new Skill(this, name, currentXp, xpModifier, effectiveTable, effectiveCategories);
             _skills.Add(newSkill);
 
-            this.Monitor.Log($"Successfully initialized custom skill: {name}", LogLevel.Info);
+            this.Monitor?.Log($"Successfully initialized custom skill: {name}", LogLevel.Info);
         }
 
         #endregion
     }
 }
-

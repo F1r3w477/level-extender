@@ -1,7 +1,7 @@
 {
     "Name": "Level Extender",
     "Author": "Devin Lematty & F1r3w477",
-    "Version": "2.2.0",
+    "Version": "2.2.1",
     "Description": "Extends profession levels to 100+.",
     "UniqueID": "Unidarkshin.LevelExtender",
     "EntryDll": "LevelExtender.dll",
