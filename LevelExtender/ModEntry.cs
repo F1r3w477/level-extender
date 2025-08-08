@@ -418,9 +418,14 @@ namespace LevelExtender
                 return;
             }
 
+            // These bounds match vanilla BobberBar's rail area (top and bottom in pixels)
+            const int TrackTop = 68;
+            const int TrackBottom = 568;
+            const int TrackHeight = TrackBottom - TrackTop; // 500px in vanilla
+
             if (!_isFishingBobberLogicActive)
             {
-                // This logic runs once when the fishing minigame starts
+                // Runs once when the fishing minigame starts
                 var fishingLevel = Game1.player.FishingLevel;
                 int bobberBonus = 0;
                 if (fishingLevel > 99) bobberBonus = 8;
@@ -428,23 +433,48 @@ namespace LevelExtender
                 else if (fishingLevel > 49) bobberBonus = 4;
                 else if (fishingLevel > 24) bobberBonus = 2;
 
-                int bobberBarSize = 80 + bobberBonus + (fishingLevel * 9); // simplified example
+                int bobberBarSize = 80 + bobberBonus + (fishingLevel * 9);
+
+                // 🔒 Cap the green bar to 100% of the track height
+                bobberBarSize = Math.Min(bobberBarSize, TrackHeight);
+
+                // Keep the bar fully inside the track (top never above TrackTop)
+                int bobberBarPos = TrackBottom - bobberBarSize;
+                if (bobberBarPos < TrackTop)
+                    bobberBarPos = TrackTop;
 
                 this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight").SetValue(bobberBarSize);
-                this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").SetValue(568 - bobberBarSize);
+                this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").SetValue(bobberBarPos);
+
                 _isFishingBobberLogicActive = true;
             }
             else
             {
-                // This logic runs on subsequent ticks while the minigame is active
+                // Runs every tick while the minigame is active
                 bool bobberInBar = this.Helper.Reflection.GetField<bool>(bar, "bobberInBar").GetValue();
                 if (!bobberInBar)
                 {
                     float dist = this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").GetValue();
                     this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").SetValue(dist + ((Game1.player.FishingLevel - 10) / 22000.0f));
                 }
+
+                // 🔒 Enforce the cap even if something else modifies the height
+                var heightField = this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight");
+                var posField = this.Helper.Reflection.GetField<float>(bar, "bobberBarPos");
+
+                int h = heightField.GetValue();
+                if (h > TrackHeight)
+                {
+                    h = TrackHeight;
+                    int pos = TrackBottom - h;
+                    if (pos < TrackTop) pos = TrackTop;
+
+                    heightField.SetValue(h);
+                    posField.SetValue(pos);
+                }
             }
         }
+
 
         private void DrawExperienceBar(SpriteBatch b, XPBar bar, int index)
         {

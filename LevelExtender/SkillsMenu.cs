@@ -129,16 +129,16 @@ namespace LevelExtender
                 int barMaxRight = lvlX - BarRightGap;
                 int barWidth = Math.Max(1, barMaxRight - barX);
 
+                // thresholds & percent
+                int prevLevelXp = s.GetRequiredExperienceForLevel(s.Level - 1);
+                int levelXp = s.GetRequiredExperienceForLevel(s.Level);
+                int percent = ComputeLevelPercent(prevLevelXp, levelXp, s.Experience);
+
                 // bar background
                 b.Draw(Game1.staminaRect, new Rectangle(barX, barY, barWidth, BarHeightPx), Color.Black * 0.35f);
 
-                // bar fill
-                int prevLevelXp = s.GetRequiredExperienceForLevel(s.Level - 1);
-                int levelXp = s.GetRequiredExperienceForLevel(s.Level);
-                int need = Math.Max(1, levelXp - prevLevelXp);
-                int have = Math.Max(0, s.Experience - prevLevelXp);
-                float pct = Math.Clamp(have / (float)need, 0f, 1f);
-                int fill = (int)(barWidth * pct);
+                // bar fill (percent → pixels)
+                int fill = (int)(barWidth * (percent / 100f));
                 if (fill > 0)
                     b.Draw(Game1.staminaRect, new Rectangle(barX, barY, fill, BarHeightPx), new Color(15, 122, 255));
 
@@ -163,16 +163,13 @@ namespace LevelExtender
             if (_hoverRowIndex >= 0 && _hoverRowIndex < (end - start))
             {
                 var s = _skills[start + _hoverRowIndex];
-                int prev = s.GetRequiredExperienceForLevel(s.Level - 1);
-                int next = s.GetRequiredExperienceForLevel(s.Level);
-                int need = Math.Max(1, next - prev);
-                int have = Math.Max(0, s.Experience - prev);
-                float pct = Math.Clamp(have / (float)need, 0f, 1f);
+                var (prev, next, need, have, pct) = ComputeLevelProgress(s);
+                int percent = (int)(pct * 100f);
 
                 string tip =
                     $"{s.Name}\n" +
                     $"Level: {s.Level}\n" +
-                    $"XP this level: {have:n0} / {need:n0}  ({pct * 100f:0.#}%)\n" +
+                    $"XP this level: {have:n0} / {need:n0}  ({percent:0.#}%)\n" +
                     $"Total XP: {s.Experience:n0}";
 
                 drawHoverText(b, tip, Game1.smallFont);
@@ -267,6 +264,62 @@ namespace LevelExtender
             4 => new Rectangle(120, 428, 10, 10), // Combat
             _ => new Rectangle(50, 428, 10, 10),  // Luck/default
         };
+
+    #if DEBUG
+        // expose constants for tests (read-only)
+        internal const int Debug_NameOffsetX = NameOffsetX;
+        internal const int Debug_RightPadding = RightPadding;
+        internal const int Debug_BarRightGap = BarRightGap;
+        internal const int Debug_RowHeight = RowHeight;
+        internal const int Debug_BarTopMargin = BarTopMargin;
+        internal const int Debug_BarHeightPx = BarHeightPx;
+
+        /// <summary>Compute the page range [start, end) for a given page.</summary>
+        internal static (int start, int end) ComputePageRange(int pageIndex, int rowsPerPage, int count)
+            => (pageIndex * rowsPerPage, Math.Min(pageIndex * rowsPerPage + rowsPerPage, count));
+
+        /// <summary>Compute the width of the XP bar, leaving room for the right-aligned level label.</summary>
+        internal static int ComputeBarWidth(int listLeft, int listRight, int levelTextWidth)
+        {
+            int nameX = listLeft + NameOffsetX;
+            int lvlX  = listRight - RightPadding - levelTextWidth;
+            int barMaxRight = lvlX - BarRightGap;
+            return Math.Max(1, barMaxRight - nameX);
+        }
+
+        /// <summary>Math used for tooltip values: previous/next thresholds, need/have, and percent (0..1).</summary>
+        internal static (int prev, int next, int need, int have, float pct) ComputeLevelProgress(Skill s)
+        {
+            int prev = s.GetRequiredExperienceForLevel(s.Level - 1);
+            int next = s.GetRequiredExperienceForLevel(s.Level);
+            int need = Math.Max(1, next - prev);
+            int have = Math.Max(0, s.Experience - prev);
+            float pct = Math.Clamp(have / (float)need, 0f, 1f);
+            return (prev, next, need, have, pct);
+        }
+
+        /// <summary>
+        /// Compute progress as an integer percentage (0..100). Friendly for tests & UI.
+        /// </summary>
+        internal static int ComputeLevelPercent(int prevLevelXp, int levelXp, int currentXp)
+        {
+            int need = Math.Max(1, levelXp - prevLevelXp);
+            int have = Math.Max(0, currentXp - prevLevelXp);
+            float pct = Math.Clamp(have / (float)need, 0f, 1f);
+            return (int)(pct * 100f);
+        }
+
+        /// <summary>Convenience overload using a <see cref="Skill"/>.</summary>
+        internal static int ComputeLevelPercent(Skill s)
+            => ComputeLevelPercent(
+                s.GetRequiredExperienceForLevel(s.Level - 1),
+                s.GetRequiredExperienceForLevel(s.Level),
+                s.Experience
+            );
+
+        // make icon mapper testable
+        internal static Rectangle Debug_GetIconRectForSkill(int key) => GetIconRectForSkill(key);
+    #endif
 
         #endregion
     }

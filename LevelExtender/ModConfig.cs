@@ -1,5 +1,4 @@
-﻿// File: ModConfig.cs
-using StardewModdingAPI;
+﻿using StardewModdingAPI;
 using StardewModdingAPI.Utilities;
 
 namespace LevelExtender
@@ -51,7 +50,16 @@ namespace LevelExtender
         /// <summary>The bonus chance for a monster to spawn for each combat level the player has.</summary>
         public double SpawnChancePerLevel { get; set; } = 0.0001;
 
-        /// <summary>Key(s) to open the Extended Skills menu. Supports combos and multiple fallbacks.</summary>
-        public KeybindList OpenSkillsMenu { get; set; } = KeybindList.Parse("LeftShift + K");
+        /// <summary>
+        /// Key(s) to open the Extended Skills menu. Supports combos and multiple fallbacks.
+        /// </summary>
+        public KeybindList OpenSkillsMenu { get; set; }
+
+        /// <summary>Initialize defaults that don’t require SMAPI.Toolkit.</summary>
+        public ModConfig()
+        {
+            // Default: LeftShift + K (combo)
+            OpenSkillsMenu = new KeybindList(new Keybind(SButton.LeftShift, SButton.K));
+        }
     }
 }
