@@ -36,9 +36,10 @@ namespace LevelExtender
         public double LevelingCurveBaseExperience { get; set; } = 7800;
 
         /// <summary>
-        /// The percentage increase in required XP for each level after 10. (e.g., 1.042 is a 4.2% increase per level).
+        /// The percentage increase in required XP for each level after 10.
+        /// Example: 4.2 means each level requires 4.2% more XP than the last.
         /// </summary>
-        public double LevelingCurveGrowthRate { get; set; } = 1.042;
+        public double LevelingCurveGrowthPercent { get; set; } = 4.2;
 
         /// <summary>The number of columns to use when displaying the `le_xp_table` command.</summary>
         public int TableColumns { get; set; } = 4;

@@ -29,9 +29,13 @@ namespace LevelExtender.Tests
             int currentXp = 0,
             double? xpModifier = null,
             List<int>? xpTable = null,
-            int[]? categories = null
+            int[]? categories = null,
+            double? growthPercent = null
         )
         {
+            if (growthPercent.HasValue)
+                _mod._config.LevelingCurveGrowthPercent = growthPercent.Value;
+
             return new Skill(_mod, name, currentXp, xpModifier, xpTable, categories);
         }
 
@@ -219,6 +223,19 @@ namespace LevelExtender.Tests
                 Assert.That(s.ExperienceTable[i], Is.GreaterThan(s.ExperienceTable[i - 1]),
                     $"ExperienceTable must be strictly increasing at index {i}");
             }
+        }
+        
+        [Test]
+        public void HigherGrowthPercent_ProducesHigherXpThresholds()
+        {
+            var sLow = NewSkill(currentXp: 0, growthPercent: 3.0);
+            var sHigh = NewSkill(currentXp: 0, growthPercent: 8.0);
+
+            int xpLow = sLow.GetRequiredExperienceForLevel(25);
+            int xpHigh = sHigh.GetRequiredExperienceForLevel(25);
+
+            Assert.That(xpHigh, Is.GreaterThan(xpLow),
+                "A higher growth percent should yield a higher XP requirement at the same level.");
         }
     }
 }

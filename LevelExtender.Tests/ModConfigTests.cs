@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using NUnit.Framework;
 
 namespace LevelExtender.Tests
@@ -34,7 +33,7 @@ namespace LevelExtender.Tests
             Assert.That(c.EnableWorldMonsters, Is.False);
 
             Assert.That(c.LevelingCurveBaseExperience, Is.EqualTo(7800d));
-            Assert.That(c.LevelingCurveGrowthRate, Is.EqualTo(1.042d));
+            Assert.That(c.LevelingCurveGrowthPercent, Is.EqualTo(4.2d));
 
             Assert.That(c.TableColumns, Is.EqualTo(4));
 
@@ -52,7 +51,7 @@ namespace LevelExtender.Tests
                 MinItemPriceForNotifications = 123,
                 EnableWorldMonsters = true,
                 LevelingCurveBaseExperience = 9000,
-                LevelingCurveGrowthRate = 1.08,
+                LevelingCurveGrowthPercent = 8.0,
                 TableColumns = 6,
                 BaseSpawnChance = 0.02,
                 SpawnChancePerLevel = 0.00025
@@ -65,7 +64,7 @@ namespace LevelExtender.Tests
                 Assert.That(c.MinItemPriceForNotifications, Is.EqualTo(123));
                 Assert.That(c.EnableWorldMonsters, Is.True);
                 Assert.That(c.LevelingCurveBaseExperience, Is.EqualTo(9000d));
-                Assert.That(c.LevelingCurveGrowthRate, Is.EqualTo(1.08d));
+                Assert.That(c.LevelingCurveGrowthPercent, Is.EqualTo(8.0d));
                 Assert.That(c.TableColumns, Is.EqualTo(6));
                 Assert.That(c.BaseSpawnChance, Is.EqualTo(0.02d));
                 Assert.That(c.SpawnChancePerLevel, Is.EqualTo(0.00025d));
@@ -79,7 +78,7 @@ namespace LevelExtender.Tests
             _mod._config = new ModConfig
             {
                 LevelingCurveBaseExperience = 7800,
-                LevelingCurveGrowthRate = 1.042
+                LevelingCurveGrowthPercent = 4.2
             };
             var baselineSkill = new Skill(_mod, "Baseline", 0, xpModifier: 1.0, xpTable: null, categories: null);
             int baselineL11 = baselineSkill.GetRequiredExperienceForLevel(10); // index 10 => level 11
@@ -89,7 +88,7 @@ namespace LevelExtender.Tests
             modHigherBase._config = new ModConfig
             {
                 LevelingCurveBaseExperience = 9000, // bump this
-                LevelingCurveGrowthRate = 1.042     // same growth
+                LevelingCurveGrowthPercent = 4.2     // same growth
             };
             var higherBaseSkill = new Skill(modHigherBase, "HigherBase", 0, xpModifier: 1.0, xpTable: null, categories: null);
             int higherBaseL11 = higherBaseSkill.GetRequiredExperienceForLevel(10);
@@ -98,23 +97,23 @@ namespace LevelExtender.Tests
         }
 
         [Test]
-        public void Changing_GrowthRate_AltersHigherLevelThresholds()
+        public void Changing_GrowthPercent_AltersHigherLevelThresholds()
         {
-            // Lower growth rate baseline
+            // Lower growth percent baseline
             _mod._config = new ModConfig
             {
                 LevelingCurveBaseExperience = 7800,
-                LevelingCurveGrowthRate = 1.03
+                LevelingCurveGrowthPercent = 3.0
             };
             var slowCurveSkill = new Skill(_mod, "SlowCurve", 0, xpModifier: 1.0, xpTable: null, categories: null);
             int slowL25 = slowCurveSkill.GetRequiredExperienceForLevel(24); // Level 25 threshold
 
-            // Higher growth rate -> much higher L25 threshold
+            // Higher growth percent -> much higher L25 threshold
             var modFasterGrowth = new MockModEntry();
             modFasterGrowth._config = new ModConfig
             {
                 LevelingCurveBaseExperience = 7800,
-                LevelingCurveGrowthRate = 1.08 // steeper curve
+                LevelingCurveGrowthPercent = 8.0 // steeper curve
             };
             var fastCurveSkill = new Skill(modFasterGrowth, "FastCurve", 0, xpModifier: 1.0, xpTable: null, categories: null);
             int fastL25 = fastCurveSkill.GetRequiredExperienceForLevel(24);
