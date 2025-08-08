@@ -5,8 +5,7 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Menus;
 using StardewValley.Monsters;
-using StardewValley.TerrainFeatures;
-using StardewValley.Tools;
+using StardewValley.GameData.Objects;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -26,12 +25,12 @@ namespace LevelExtender
         public static ModEntry Instance { get; private set; }
 
         private Harmony _harmony;
-        private ModConfig _config;
+        internal ModConfig _config;
         private LEModApi _api;
-        private LEEvents _events;
+        private LEEvents _events = new LEEvents();
 
         private readonly Random _random = new((int)Game1.uniqueIDForThisGame);
-        private readonly List<Skill> _skills = new();
+        internal List<Skill> _skills = new();
         private readonly List<XPBar> _xpBars = new();
         private DateTime _lastRenderTime;
         private Dictionary<string, StardewValley.GameData.Objects.ObjectData> _cachedObjectData;
@@ -49,7 +48,7 @@ namespace LevelExtender
         private const int BarStartYBase = 8;
         private const int BarWidth = 280;
         private const int BarHeight = 72;
-        private const int BarFillWidth = 240;
+        private const int BarFillWidth = BarWidth - ProgressBarOffsetX - BarTextPaddingRight;
         private const int BarIconPadding = 16;
         private const int BarTextOffsetX = 68;
         private const int BarTextOffsetY = 22;
@@ -57,11 +56,12 @@ namespace LevelExtender
         private const int ProgressBarOffsetX = 20;
         private const int ProgressBarOffsetY = 52;
         private const int FadeInDurationMs = 500;
+        private const double FadeOutDurationMs = 500;
         private const int FadeOutStartTimeMs = 4500;
         private const int XpBarVisibleDurationSeconds = 5;
 
         #endregion
-        
+
         #region Properties
 
         /// <summary>Provides access to the user-configurable settings.</summary>
@@ -90,6 +90,7 @@ namespace LevelExtender
             helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
             helper.Events.GameLoop.DayStarted += this.OnDayStarted;
             helper.Events.GameLoop.UpdateTicked += this.OnUpdateTicked;
+            helper.Events.Input.ButtonsChanged += this.OnButtonsChanged;
             helper.Events.GameLoop.OneSecondUpdateTicked += this.OnOneSecondUpdate;
             helper.Events.Display.Rendered += this.OnRendered;
             _events.OnXPChanged += this.OnExperienceChanged;
@@ -112,6 +113,9 @@ namespace LevelExtender
             helper.ConsoleCommands.Add("le_xp_table", "Displays the full XP table for a specific skill. Usage: le_xp_table <skill>", commands.ShowSkillXpTable);
             helper.ConsoleCommands.Add("le_toggle_notifications", "Toggles the 'extra item' notifications.", commands.ToggleExtraItemNotifications);
             helper.ConsoleCommands.Add("le_min_notification_price", "Sets the minimum price for an item to trigger an 'extra item' notification.", commands.SetMinNotificationPrice);
+
+            // Console command to open the skills menu
+            helper.ConsoleCommands.Add("le_skills", "Open the Level Extender skills menu.", (cmd, args) => OpenSkillsMenu());
         }
 
         /// <summary>Expose the mod's API to other mods.</summary>
@@ -128,32 +132,26 @@ namespace LevelExtender
         {
             _skills.Clear();
 
-            // --- Data Migration Logic Starts Here ---
-
+            // --- Data Migration Logic ---
             string skillsFilePath = $"data/{Constants.SaveFolderName}.json";
             List<SkillData> skillDataList = null;
             JToken parsedJson = null;
 
-            // Read the file generically to check its structure without crashing.
             try
             {
                 parsedJson = this.Helper.Data.ReadJsonFile<JToken>(skillsFilePath);
             }
             catch (Exception ex)
             {
-                this.Monitor.Log($"Failed to read or parse the skills data file at '{skillsFilePath}'. The file may be corrupted. Skill progress will be reset for this session. Error: {ex.Message}", LogLevel.Error);
-                parsedJson = null;
+                this.Monitor?.Log($"Failed to read or parse skills data file at '{skillsFilePath}'. The file may be corrupted. Skill progress will be reset for this session. Error: {ex.Message}", LogLevel.Error);
             }
 
             if (parsedJson is JObject oldFormatObject && oldFormatObject.ContainsKey("skills"))
             {
-                // OLD FORMAT DETECTED: It's an object with a "skills" property. Let's migrate it.
-                this.Monitor.Log("Old save data format detected. Migrating to new format...", LogLevel.Info);
+                this.Monitor?.Log("Old save data format detected. Migrating to new format...", LogLevel.Info);
                 skillDataList = new List<SkillData>();
 
-                // Get the list of skill strings (e.g., "Farming,15000,1.0")
-                JArray oldSkillsArray = oldFormatObject["skills"] as JArray;
-                if (oldSkillsArray != null)
+                if (oldFormatObject["skills"] is JArray oldSkillsArray)
                 {
                     foreach (var skillString in oldSkillsArray)
                     {
@@ -170,34 +168,27 @@ namespace LevelExtender
                         }
                         catch (Exception ex)
                         {
-                            this.Monitor.Log($"Could not parse an old skill entry ('{skillString}'). It will be skipped. Error: {ex.Message}", LogLevel.Error);
+                            this.Monitor?.Log($"Could not parse an old skill entry ('{skillString}'). It will be skipped. Error: {ex.Message}", LogLevel.Error);
                         }
                     }
                 }
             }
             else if (parsedJson is JArray newFormatArray)
             {
-                // NEW FORMAT DETECTED: It's already an array, so deserialize it normally.
                 skillDataList = newFormatArray.ToObject<List<SkillData>>();
             }
 
-            // If the file didn't exist or was empty, initialize an empty list.
             skillDataList ??= new List<SkillData>();
 
-            // --- Data Migration Logic Ends Here ---
-
-
-            // The rest of the method proceeds normally using the 'skillDataList' we now have.
+            // --- Skill Initialization ---
             var loadedSkillNames = new HashSet<string>(skillDataList.Select(s => s.Name));
 
-            // Add skills from the save file
             foreach (var skillData in skillDataList)
             {
                 var skill = new Skill(this, skillData.Name, skillData.Experience, skillData.ExperienceModifier, new List<int>(this.DefaultRequiredXp), GetCategoriesForSkill(skillData.Name));
                 _skills.Add(skill);
             }
 
-            // Add any missing vanilla skills
             string[] vanillaSkillNames = { "Farming", "Fishing", "Foraging", "Mining", "Combat" };
             for (int i = 0; i < vanillaSkillNames.Length; i++)
             {
@@ -208,12 +199,16 @@ namespace LevelExtender
                 }
             }
 
-            this.Monitor.Log($"Level Extender: Loaded {_skills.Count} skills.", LogLevel.Info);
+            this.Monitor?.Log($"Level Extender: Loaded {_skills.Count} skills.", LogLevel.Info);
 
-            // Load other per-save data
             var saveData = this.Helper.Data.ReadSaveData<SaveDataModel>("LevelExtender-SaveData") ?? new SaveDataModel();
             _config.EnableWorldMonsters = saveData.EnableWorldMonsters;
-            _cachedObjectData = this.Helper.GameContent.Load<Dictionary<string, StardewValley.GameData.Objects.ObjectData>>("Data/Objects");
+
+            // Pre-load game assets
+            _cachedObjectData = this.Helper.GameContent.Load<Dictionary<string, ObjectData>>("Data/Objects");
+
+            // Perform initial sync to make sure Game1.player is up to date with loaded data.
+            this.SyncSkillsToGame();
         }
 
         private void OnSaving(object sender, SavingEventArgs e)
@@ -298,10 +293,30 @@ namespace LevelExtender
             var skill = _skills.FirstOrDefault(s => s.Key == e.Key);
             if (skill is null) return;
 
+            // Update UI
             _xpBars.RemoveAll(bar => bar.Skill.Key == e.Key);
-
             _xpBars.Add(new XPBar(skill));
             _xpBars.Sort((a, b) => a.CreationTime.CompareTo(b.CreationTime));
+
+            // Sync our skill data TO the game state
+            this.SyncSkillsToGame();
+        }
+
+        private void OnButtonsChanged(object? sender, ButtonsChangedEventArgs e)
+        {
+            // If our menu is already open, let the key close it regardless of player-free state.
+            if (Game1.activeClickableMenu is SkillsMenu && _config.OpenSkillsMenu.JustPressed())
+            {
+                Game1.exitActiveMenu();
+                return;
+            }
+
+            // Otherwise only open when the player is free (no blocking menus/cutscenes).
+            if (!Context.IsPlayerFree)
+                return;
+
+            if (_config.OpenSkillsMenu.JustPressed())
+                OpenSkillsMenu();
         }
 
         #endregion
@@ -403,9 +418,14 @@ namespace LevelExtender
                 return;
             }
 
+            // These bounds match vanilla BobberBar's rail area (top and bottom in pixels)
+            const int TrackTop = 68;
+            const int TrackBottom = 568;
+            const int TrackHeight = TrackBottom - TrackTop; // 500px in vanilla
+
             if (!_isFishingBobberLogicActive)
             {
-                // This logic runs once when the fishing minigame starts
+                // Runs once when the fishing minigame starts
                 var fishingLevel = Game1.player.FishingLevel;
                 int bobberBonus = 0;
                 if (fishingLevel > 99) bobberBonus = 8;
@@ -413,80 +433,152 @@ namespace LevelExtender
                 else if (fishingLevel > 49) bobberBonus = 4;
                 else if (fishingLevel > 24) bobberBonus = 2;
 
-                int bobberBarSize = 80 + bobberBonus + (fishingLevel * 9); // simplified example
+                int bobberBarSize = 80 + bobberBonus + (fishingLevel * 9);
+
+                // Cap the green bar to 100% of the track height
+                bobberBarSize = Math.Min(bobberBarSize, TrackHeight);
+
+                // Keep the bar fully inside the track (top never above TrackTop)
+                int bobberBarPos = TrackBottom - bobberBarSize;
+                if (bobberBarPos < TrackTop)
+                    bobberBarPos = TrackTop;
 
                 this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight").SetValue(bobberBarSize);
-                this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").SetValue(568 - bobberBarSize);
+                this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").SetValue(bobberBarPos);
+
                 _isFishingBobberLogicActive = true;
             }
             else
             {
-                // This logic runs on subsequent ticks while the minigame is active
+                // Runs every tick while the minigame is active
                 bool bobberInBar = this.Helper.Reflection.GetField<bool>(bar, "bobberInBar").GetValue();
                 if (!bobberInBar)
                 {
                     float dist = this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").GetValue();
                     this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").SetValue(dist + ((Game1.player.FishingLevel - 10) / 22000.0f));
                 }
+
+                // Enforce the cap even if something else modifies the height
+                var heightField = this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight");
+                var posField = this.Helper.Reflection.GetField<float>(bar, "bobberBarPos");
+
+                int h = heightField.GetValue();
+                if (h > TrackHeight)
+                {
+                    h = TrackHeight;
+                    int pos = TrackBottom - h;
+                    if (pos < TrackTop) pos = TrackTop;
+
+                    heightField.SetValue(h);
+                    posField.SetValue(pos);
+                }
             }
         }
 
+
         private void DrawExperienceBar(SpriteBatch b, XPBar bar, int index)
         {
-            // --- Timing and Transparency ---
+            // === Timing & Fade ===
             var currentTime = DateTime.Now;
-            double elapsedSeconds = (_lastRenderTime == default) ? 0 : (currentTime - _lastRenderTime).TotalSeconds;
+            double elapsedSeconds = (_lastRenderTime == default)
+                ? 0
+                : (currentTime - _lastRenderTime).TotalSeconds;
+
             bar.HighlightTimer = Math.Max(0, bar.HighlightTimer - (float)elapsedSeconds);
 
             double fadeTime = (currentTime - bar.CreationTime).TotalMilliseconds;
             float transparency = 1f;
+
             if (fadeTime < FadeInDurationMs)
+            {
+                // Fade in
                 transparency = (float)(fadeTime / FadeInDurationMs);
+            }
             else if (fadeTime > FadeOutStartTimeMs)
-                transparency = 1 - ((float)(fadeTime - FadeOutStartTimeMs) / FadeInDurationMs);
+            {
+                // Fade out
+                float fadeOutProgress = (float)((fadeTime - FadeOutStartTimeMs) / FadeOutDurationMs);
+                transparency = Math.Clamp(1f - fadeOutProgress, 0f, 1f);
+            }
 
-            if (transparency <= 0) return;
+            if (transparency <= 0)
+                return;
 
-
-            // --- Layout Calculations using Constants ---
+            // === Layout ===
             int startX = BarStartX;
             int startY = BarStartYBase + (index * BarHeight);
 
-            IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), startX, startY, BarWidth, BarHeight, Color.White * transparency, 4f, true);
+            // Draw bar background
+            IClickableMenu.drawTextureBox(
+                b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18),
+                startX, startY, BarWidth, BarHeight,
+                Color.White * transparency, 4f, true
+            );
 
+            // === Skill icon ===
             Skill skill = bar.Skill;
             Rectangle iconRect = GetIconRectForSkill(skill.Key);
-            b.Draw(Game1.mouseCursors, new Vector2(startX + BarIconPadding, startY + BarIconPadding), iconRect, Color.White * transparency, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+            b.Draw(Game1.mouseCursors,
+                new Vector2(startX + BarIconPadding, startY + BarIconPadding),
+                iconRect, Color.White * transparency,
+                0f, Vector2.Zero, 4f, SpriteEffects.None, 1f
+            );
 
+            // === Text ===
             Color levelTextColor = bar.HighlightTimer > 0 ? Color.LimeGreen : Game1.textColor;
             string levelText = $"Lvl {skill.Level}";
-            Utility.drawTextWithShadow(b, skill.Name, Game1.smallFont, new Vector2(startX + BarTextOffsetX, startY + BarTextOffsetY), Game1.textColor * transparency);
-            Utility.drawTextWithShadow(b, levelText, Game1.smallFont, new Vector2(startX + BarWidth - Game1.smallFont.MeasureString(levelText).X - BarTextPaddingRight, startY + BarTextOffsetY), levelTextColor * transparency);
 
-            // Calculate XP percentage for the progress bar
+            Utility.drawTextWithShadow(
+                b, skill.Name, Game1.smallFont,
+                new Vector2(startX + BarTextOffsetX, startY + BarTextOffsetY),
+                Game1.textColor * transparency
+            );
+
+            Utility.drawTextWithShadow(
+                b, levelText, Game1.smallFont,
+                new Vector2(startX + BarWidth - Game1.smallFont.MeasureString(levelText).X - BarTextPaddingRight,
+                            startY + BarTextOffsetY),
+                levelTextColor * transparency
+            );
+
+            // === XP Progress ===
             int currentXpInLevel = skill.Experience - skill.GetRequiredExperienceForLevel(skill.Level - 1);
             int requiredXpForLevel = skill.GetRequiredExperienceForLevel(skill.Level) - skill.GetRequiredExperienceForLevel(skill.Level - 1);
-            #if DEBUG
+
+        #if DEBUG
             if (requiredXpForLevel <= 0)
-            {
-                throw new InvalidOperationException($"Invalid experience calculation for {skill.Name} at level {skill.Level}. The XP required for this level was {requiredXpForLevel}, but it must be positive.");
-            }
-            #else
+                throw new InvalidOperationException($"Invalid experience calculation for {skill.Name} at level {skill.Level}.");
+        #else
             if (requiredXpForLevel <= 0)
-            {
                 requiredXpForLevel = 1;
-            }
-            #endif
+        #endif
 
             float xpPercent = Math.Clamp((float)currentXpInLevel / requiredXpForLevel, 0f, 1f);
             int fillWidth = (int)(BarFillWidth * xpPercent);
 
-            // Draw the progress bar
-            b.Draw(Game1.staminaRect, new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, BarFillWidth, 12), Color.Black * 0.35f);
+            // Background
+            b.Draw(Game1.staminaRect,
+                new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, BarFillWidth, 12),
+                Color.Black * 0.35f
+            );
+
+            // Fill
             if (fillWidth > 0)
             {
-                 b.Draw(Game1.staminaRect, new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, fillWidth, 12), new Color(15, 122, 255));
+                b.Draw(Game1.staminaRect,
+                    new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, fillWidth, 12),
+                    new Color(15, 122, 255)
+                );
             }
+        }
+
+        /// <summary>
+        /// Opens the Level Extender skills menu. If a skills menu is already open, it will be replaced with a new instance.
+        /// </summary>
+        private void OpenSkillsMenu()
+        {
+            Game1.activeClickableMenu = new SkillsMenu(_skills);
+            Game1.playSound("bigSelect");
         }
 
         #endregion
@@ -498,12 +590,12 @@ namespace LevelExtender
         {
             _disableMonsterSpawningThisSession = true;
             int removedCount = 0;
-            
+
             foreach (GameLocation location in Game1.locations)
             {
                 removedCount += location.characters.RemoveWhere(c => c.IsMonster && ((Monster)c).wildernessFarmMonster);
             }
-            this.Monitor.Log($"Removed {removedCount} / {_totalMonstersSpawned} wilderness monsters.", LogLevel.Info);
+            this.Monitor?.Log($"Removed {removedCount} / {_totalMonstersSpawned} wilderness monsters.", LogLevel.Info);
             _totalMonstersSpawned = 0;
         }
 
@@ -679,6 +771,34 @@ namespace LevelExtender
 
         #endregion
 
+        #region Synchronization Methods
+
+        /// <summary>Syncs the state of the internal Skill objects TO the live Game1.player object.</summary>
+        private void SyncSkillsToGame()
+        {
+            if (!Context.IsWorldReady) return;
+
+            foreach (var skill in _skills)
+            {
+                if (skill.IsVanillaSkill)
+                {
+                    // This is the logic we moved out of Skill.cs
+                    switch (skill.Key)
+                    {
+                        case 0: Game1.player.farmingLevel.Value = skill.Level; break;
+                        case 1: Game1.player.fishingLevel.Value = skill.Level; break;
+                        case 2: Game1.player.foragingLevel.Value = skill.Level; break;
+                        case 3: Game1.player.miningLevel.Value = skill.Level; break;
+                        case 4: Game1.player.combatLevel.Value = skill.Level; break;
+                    }
+                    if (Game1.player.experiencePoints[skill.Key] != skill.Experience)
+                        Game1.player.experiencePoints[skill.Key] = skill.Experience;
+                }
+            }
+        }
+
+        #endregion
+
         #region Public API Methods
 
         /// <summary>Initializes and registers a new skill. This is intended to be called by other mods through the API.</summary>
@@ -687,18 +807,21 @@ namespace LevelExtender
             // Check if a skill with this name already exists to prevent duplicates.
             if (_skills.Any(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase)))
             {
-                this.Monitor.Log($"A skill with the name '{name}' has already been initialized. Skipping.", LogLevel.Warn);
+                this.Monitor?.Log($"A skill with the name '{name}' has already been initialized. Skipping.", LogLevel.Warn);
                 return;
             }
 
+            // Provide safe defaults when running outside the game/without SMAPI context.
+            var effectiveTable = xpTable ?? new List<int>(this.DefaultRequiredXp);
+            var effectiveCategories = itemCategories ?? GetCategoriesForSkill(name);
+
             // Create the new skill and add it to the list.
-            var newSkill = new Skill(this, name, currentXp, xpModifier, xpTable, itemCategories);
+            var newSkill = new Skill(this, name, currentXp, xpModifier, effectiveTable, effectiveCategories);
             _skills.Add(newSkill);
 
-            this.Monitor.Log($"Successfully initialized custom skill: {name}", LogLevel.Info);
+            this.Monitor?.Log($"Successfully initialized custom skill: {name}", LogLevel.Info);
         }
 
         #endregion
     }
 }
-
