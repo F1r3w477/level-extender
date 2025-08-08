@@ -435,7 +435,7 @@ namespace LevelExtender
 
                 int bobberBarSize = 80 + bobberBonus + (fishingLevel * 9);
 
-                // 🔒 Cap the green bar to 100% of the track height
+                // Cap the green bar to 100% of the track height
                 bobberBarSize = Math.Min(bobberBarSize, TrackHeight);
 
                 // Keep the bar fully inside the track (top never above TrackTop)
@@ -458,7 +458,7 @@ namespace LevelExtender
                     this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").SetValue(dist + ((Game1.player.FishingLevel - 10) / 22000.0f));
                 }
 
-                // 🔒 Enforce the cap even if something else modifies the height
+                // Enforce the cap even if something else modifies the height
                 var heightField = this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight");
                 var posField = this.Helper.Reflection.GetField<float>(bar, "bobberBarPos");
 

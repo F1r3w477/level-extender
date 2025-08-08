@@ -38,14 +38,20 @@ namespace LevelExtender
     /// <summary>The public API for Level Extender, allowing other mods to interact with its skill system.</summary>
     public interface ILevelExtenderApi
     {
-        /// <summary>Raised whenever experience is changed for any skill.</summary>
+        /// <summary>Raised whenever experience is changed for any skill. Fired on the main game thread.</summary>
         event EventHandler<EXPEventArgs> OnXPChanged;
 
         /// <summary>
         /// Registers a new custom skill with the Level Extender system.
         /// This should be called once, preferably in the GameLoop.SaveLoaded event.
         /// </summary>
-        /// <exception cref="InvalidOperationException">Thrown if a skill with the same name is already registered.</exception>
+        /// <param name="name">Unique skill name (case-insensitive).</param>
+        /// <param name="currentXp">Initial total XP for the skill.</param>
+        /// <param name="xpModifier">Optional XP curve modifier (&gt;= 0) applied after level 10.</param>
+        /// <param name="xpTable">Optional base XP thresholds (levels 1–10). A defensive copy is made.</param>
+        /// <param name="itemCategories">Optional item categories associated with the skill. A defensive copy is made.</param>
+        /// <exception cref="ArgumentException">If <paramref name="name"/> is null/empty/whitespace.</exception>
+        /// <exception cref="InvalidOperationException">If a skill with the same name is already registered.</exception>
         void InitializeSkill(string name, int currentXp, double? xpModifier = null, List<int> xpTable = null, int[] itemCategories = null);
 
         /// <summary>
@@ -63,7 +69,9 @@ namespace LevelExtender
         /// <returns><c>true</c> if the skill exists; otherwise <c>false</c>.</returns>
         bool TryGetSkill(string name, out ISkillApi skill);
 
-        /// <summary>Gets an API wrapper for all registered skills.</summary>
+        /// <summary>
+        /// Gets API wrappers for all registered skills. Returns live objects whose changes update in-game state.
+        /// </summary>
         IEnumerable<ISkillApi> GetAllSkills();
 
         /// <summary>
@@ -95,10 +103,19 @@ namespace LevelExtender
 
         public void InitializeSkill(string name, int currentXp, double? xpModifier = null, List<int> xpTable = null, int[] itemCategories = null)
         {
+            // basic validation + normalized name
+            if (string.IsNullOrWhiteSpace(name))
+                throw new ArgumentException("Skill name must be non-empty.", nameof(name));
+            name = name.Trim();
+
             if (GetSkill(name) != null)
                 throw new InvalidOperationException($"Skill '{name}' is already registered.");
 
-            _modEntry.InitializeSkill(name, currentXp, xpModifier, xpTable, itemCategories);
+            // defensive copies of caller-provided collections
+            var tableCopy = xpTable != null ? new List<int>(xpTable) : null;
+            var categoriesCopy = itemCategories != null ? (int[])itemCategories.Clone() : null;
+
+            _modEntry.InitializeSkill(name, currentXp, xpModifier, tableCopy, categoriesCopy);
         }
 
         public ISkillApi GetSkill(string name)
@@ -114,6 +131,8 @@ namespace LevelExtender
 
         public IEnumerable<ISkillApi> GetAllSkills()
         {
+            // Return live objects so external mods can modify levels/XP and see immediate effects.
+            // If you ever want a snapshot instead, switch to: return _modEntry.Skills.ToArray();
             return _modEntry.Skills;
         }
 

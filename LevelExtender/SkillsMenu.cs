@@ -265,7 +265,7 @@ namespace LevelExtender
             _ => new Rectangle(50, 428, 10, 10),  // Luck/default
         };
 
-    #if DEBUG
+#if DEBUG
         // expose constants for tests (read-only)
         internal const int Debug_NameOffsetX = NameOffsetX;
         internal const int Debug_RightPadding = RightPadding;
@@ -319,7 +319,7 @@ namespace LevelExtender
 
         // make icon mapper testable
         internal static Rectangle Debug_GetIconRectForSkill(int key) => GetIconRectForSkill(key);
-    #endif
+#endif
 
         #endregion
     }
