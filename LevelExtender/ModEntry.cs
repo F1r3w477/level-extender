@@ -50,7 +50,7 @@ namespace LevelExtender
         private const int BarStartYBase = 8;
         private const int BarWidth = 280;
         private const int BarHeight = 72;
-        private const int BarFillWidth = 240;
+        private const int BarFillWidth = BarWidth - ProgressBarOffsetX - BarTextPaddingRight;
         private const int BarIconPadding = 16;
         private const int BarTextOffsetX = 68;
         private const int BarTextOffsetY = 22;
@@ -58,6 +58,7 @@ namespace LevelExtender
         private const int ProgressBarOffsetX = 20;
         private const int ProgressBarOffsetY = 52;
         private const int FadeInDurationMs = 500;
+        private const double FadeOutDurationMs = 500;
         private const int FadeOutStartTimeMs = 4500;
         private const int XpBarVisibleDurationSeconds = 5;
 
@@ -428,61 +429,100 @@ namespace LevelExtender
 
         private void DrawExperienceBar(SpriteBatch b, XPBar bar, int index)
         {
-            // --- Timing and Transparency ---
+            // === Timing & Fade ===
             var currentTime = DateTime.Now;
-            double elapsedSeconds = (_lastRenderTime == default) ? 0 : (currentTime - _lastRenderTime).TotalSeconds;
+            double elapsedSeconds = (_lastRenderTime == default)
+                ? 0
+                : (currentTime - _lastRenderTime).TotalSeconds;
+
             bar.HighlightTimer = Math.Max(0, bar.HighlightTimer - (float)elapsedSeconds);
 
             double fadeTime = (currentTime - bar.CreationTime).TotalMilliseconds;
             float transparency = 1f;
+
             if (fadeTime < FadeInDurationMs)
+            {
+                // Fade in
                 transparency = (float)(fadeTime / FadeInDurationMs);
+            }
             else if (fadeTime > FadeOutStartTimeMs)
-                transparency = 1 - ((float)(fadeTime - FadeOutStartTimeMs) / FadeInDurationMs);
+            {
+                // Fade out
+                float fadeOutProgress = (float)((fadeTime - FadeOutStartTimeMs) / FadeOutDurationMs);
+                transparency = Math.Clamp(1f - fadeOutProgress, 0f, 1f);
+            }
 
-            if (transparency <= 0) return;
+            if (transparency <= 0)
+                return;
 
-
-            // --- Layout Calculations using Constants ---
+            // === Layout ===
             int startX = BarStartX;
             int startY = BarStartYBase + (index * BarHeight);
 
-            IClickableMenu.drawTextureBox(b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18), startX, startY, BarWidth, BarHeight, Color.White * transparency, 4f, true);
+            // Draw bar background
+            IClickableMenu.drawTextureBox(
+                b, Game1.mouseCursors, new Rectangle(384, 373, 18, 18),
+                startX, startY, BarWidth, BarHeight,
+                Color.White * transparency, 4f, true
+            );
 
+            // === Skill icon ===
             Skill skill = bar.Skill;
             Rectangle iconRect = GetIconRectForSkill(skill.Key);
-            b.Draw(Game1.mouseCursors, new Vector2(startX + BarIconPadding, startY + BarIconPadding), iconRect, Color.White * transparency, 0f, Vector2.Zero, 4f, SpriteEffects.None, 1f);
+            b.Draw(Game1.mouseCursors,
+                new Vector2(startX + BarIconPadding, startY + BarIconPadding),
+                iconRect, Color.White * transparency,
+                0f, Vector2.Zero, 4f, SpriteEffects.None, 1f
+            );
 
+            // === Text ===
             Color levelTextColor = bar.HighlightTimer > 0 ? Color.LimeGreen : Game1.textColor;
             string levelText = $"Lvl {skill.Level}";
-            Utility.drawTextWithShadow(b, skill.Name, Game1.smallFont, new Vector2(startX + BarTextOffsetX, startY + BarTextOffsetY), Game1.textColor * transparency);
-            Utility.drawTextWithShadow(b, levelText, Game1.smallFont, new Vector2(startX + BarWidth - Game1.smallFont.MeasureString(levelText).X - BarTextPaddingRight, startY + BarTextOffsetY), levelTextColor * transparency);
 
-            // Calculate XP percentage for the progress bar
+            Utility.drawTextWithShadow(
+                b, skill.Name, Game1.smallFont,
+                new Vector2(startX + BarTextOffsetX, startY + BarTextOffsetY),
+                Game1.textColor * transparency
+            );
+
+            Utility.drawTextWithShadow(
+                b, levelText, Game1.smallFont,
+                new Vector2(startX + BarWidth - Game1.smallFont.MeasureString(levelText).X - BarTextPaddingRight,
+                            startY + BarTextOffsetY),
+                levelTextColor * transparency
+            );
+
+            // === XP Progress ===
             int currentXpInLevel = skill.Experience - skill.GetRequiredExperienceForLevel(skill.Level - 1);
             int requiredXpForLevel = skill.GetRequiredExperienceForLevel(skill.Level) - skill.GetRequiredExperienceForLevel(skill.Level - 1);
-            #if DEBUG
+
+        #if DEBUG
             if (requiredXpForLevel <= 0)
-            {
-                throw new InvalidOperationException($"Invalid experience calculation for {skill.Name} at level {skill.Level}. The XP required for this level was {requiredXpForLevel}, but it must be positive.");
-            }
-            #else
+                throw new InvalidOperationException($"Invalid experience calculation for {skill.Name} at level {skill.Level}.");
+        #else
             if (requiredXpForLevel <= 0)
-            {
                 requiredXpForLevel = 1;
-            }
-            #endif
+        #endif
 
             float xpPercent = Math.Clamp((float)currentXpInLevel / requiredXpForLevel, 0f, 1f);
             int fillWidth = (int)(BarFillWidth * xpPercent);
 
-            // Draw the progress bar
-            b.Draw(Game1.staminaRect, new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, BarFillWidth, 12), Color.Black * 0.35f);
+            // Background
+            b.Draw(Game1.staminaRect,
+                new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, BarFillWidth, 12),
+                Color.Black * 0.35f
+            );
+
+            // Fill
             if (fillWidth > 0)
             {
-                 b.Draw(Game1.staminaRect, new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, fillWidth, 12), new Color(15, 122, 255));
+                b.Draw(Game1.staminaRect,
+                    new Rectangle(startX + ProgressBarOffsetX, startY + ProgressBarOffsetY, fillWidth, 12),
+                    new Color(15, 122, 255)
+                );
             }
         }
+
 
         #endregion
 
