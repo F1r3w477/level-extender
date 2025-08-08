@@ -6,8 +6,6 @@ using StardewValley;
 using StardewValley.Menus;
 using StardewValley.Monsters;
 using StardewValley.GameData.Objects;
-using StardewValley.TerrainFeatures;
-using StardewValley.Tools;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -92,6 +90,7 @@ namespace LevelExtender
             helper.Events.GameLoop.ReturnedToTitle += this.OnReturnedToTitle;
             helper.Events.GameLoop.DayStarted += this.OnDayStarted;
             helper.Events.GameLoop.UpdateTicked += this.OnUpdateTicked;
+            helper.Events.Input.ButtonsChanged += this.OnButtonsChanged;
             helper.Events.GameLoop.OneSecondUpdateTicked += this.OnOneSecondUpdate;
             helper.Events.Display.Rendered += this.OnRendered;
             _events.OnXPChanged += this.OnExperienceChanged;
@@ -114,6 +113,9 @@ namespace LevelExtender
             helper.ConsoleCommands.Add("le_xp_table", "Displays the full XP table for a specific skill. Usage: le_xp_table <skill>", commands.ShowSkillXpTable);
             helper.ConsoleCommands.Add("le_toggle_notifications", "Toggles the 'extra item' notifications.", commands.ToggleExtraItemNotifications);
             helper.ConsoleCommands.Add("le_min_notification_price", "Sets the minimum price for an item to trigger an 'extra item' notification.", commands.SetMinNotificationPrice);
+
+            // Console command to open the skills menu
+            helper.ConsoleCommands.Add("le_skills", "Open the Level Extender skills menu.", (cmd, args) => OpenSkillsMenu());
         }
 
         /// <summary>Expose the mod's API to other mods.</summary>
@@ -298,6 +300,23 @@ namespace LevelExtender
 
             // Sync our skill data TO the game state
             this.SyncSkillsToGame();
+        }
+
+        private void OnButtonsChanged(object? sender, ButtonsChangedEventArgs e)
+        {
+            // If our menu is already open, let the key close it regardless of player-free state.
+            if (Game1.activeClickableMenu is SkillsMenu && _config.OpenSkillsMenu.JustPressed())
+            {
+                Game1.exitActiveMenu();
+                return;
+            }
+
+            // Otherwise only open when the player is free (no blocking menus/cutscenes).
+            if (!Context.IsPlayerFree)
+                return;
+
+            if (_config.OpenSkillsMenu.JustPressed())
+                OpenSkillsMenu();
         }
 
         #endregion
@@ -523,6 +542,14 @@ namespace LevelExtender
             }
         }
 
+        /// <summary>
+        /// Opens the Level Extender skills menu. If a skills menu is already open, it will be replaced with a new instance.
+        /// </summary>
+        private void OpenSkillsMenu()
+        {
+            Game1.activeClickableMenu = new SkillsMenu(_skills);
+            Game1.playSound("bigSelect");
+        }
 
         #endregion
 
