@@ -98,15 +98,16 @@ namespace LevelExtender.Tests
             Assert.That(skill.Level, Is.EqualTo(2));
         }
 
-        // --- Additional API coverage ---
-
         [Test]
-        public void InitializeSkill_WithDuplicateName_DoesNotAddTwice()
+        public void InitializeSkill_WithDuplicateName_ThrowsInvalidOperationException()
         {
             _api!.InitializeSkill("Alchemy", 0);
-            _api.InitializeSkill("Alchemy", 100); // duplicate (same name)
-            Assert.That(_mockModEntry!._skills.Count, Is.EqualTo(1));
-            Assert.That(_mockModEntry._skills[0].Experience, Is.EqualTo(0)); // original unchanged
+
+            var ex = Assert.Throws<InvalidOperationException>(() =>
+                _api.InitializeSkill("Alchemy", 100) // duplicate (same name)
+            );
+
+            Assert.That(ex!.Message, Does.Contain("already registered"));
         }
 
         [Test]
