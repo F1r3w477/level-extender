@@ -118,7 +118,7 @@ namespace LevelExtender
                     iconRect, Color.White,
                     0f, Vector2.Zero, IconScale, SpriteEffects.None, 1f);
 
-                // --- XP bar FIRST (so text draws on top) ---
+                // XP bar layout
                 int nameX = listLeft + NameOffsetX;
                 int barX = nameX;
                 int barY = rowY + BarTopMargin;
@@ -142,7 +142,6 @@ namespace LevelExtender
                 if (fill > 0)
                     b.Draw(Game1.staminaRect, new Rectangle(barX, barY, fill, BarHeightPx), new Color(15, 122, 255));
 
-                // --- Then draw text on top ---
                 // Level (right-aligned)
                 Utility.drawTextWithShadow(b, lvl, Game1.smallFont, new Vector2(lvlX, rowY + NameOffsetY), Color.LimeGreen);
 
@@ -253,7 +252,7 @@ namespace LevelExtender
 
         #endregion
 
-        #region Helpers
+        #region Helpers (always compiled)
 
         private static Rectangle GetIconRectForSkill(int key) => key switch
         {
@@ -265,29 +264,6 @@ namespace LevelExtender
             _ => new Rectangle(50, 428, 10, 10),  // Luck/default
         };
 
-#if DEBUG
-        // expose constants for tests (read-only)
-        internal const int Debug_NameOffsetX = NameOffsetX;
-        internal const int Debug_RightPadding = RightPadding;
-        internal const int Debug_BarRightGap = BarRightGap;
-        internal const int Debug_RowHeight = RowHeight;
-        internal const int Debug_BarTopMargin = BarTopMargin;
-        internal const int Debug_BarHeightPx = BarHeightPx;
-
-        /// <summary>Compute the page range [start, end) for a given page.</summary>
-        internal static (int start, int end) ComputePageRange(int pageIndex, int rowsPerPage, int count)
-            => (pageIndex * rowsPerPage, Math.Min(pageIndex * rowsPerPage + rowsPerPage, count));
-
-        /// <summary>Compute the width of the XP bar, leaving room for the right-aligned level label.</summary>
-        internal static int ComputeBarWidth(int listLeft, int listRight, int levelTextWidth)
-        {
-            int nameX = listLeft + NameOffsetX;
-            int lvlX  = listRight - RightPadding - levelTextWidth;
-            int barMaxRight = lvlX - BarRightGap;
-            return Math.Max(1, barMaxRight - nameX);
-        }
-
-        /// <summary>Math used for tooltip values: previous/next thresholds, need/have, and percent (0..1).</summary>
         internal static (int prev, int next, int need, int have, float pct) ComputeLevelProgress(Skill s)
         {
             int prev = s.GetRequiredExperienceForLevel(s.Level - 1);
@@ -298,9 +274,6 @@ namespace LevelExtender
             return (prev, next, need, have, pct);
         }
 
-        /// <summary>
-        /// Compute progress as an integer percentage (0..100). Friendly for tests & UI.
-        /// </summary>
         internal static int ComputeLevelPercent(int prevLevelXp, int levelXp, int currentXp)
         {
             int need = Math.Max(1, levelXp - prevLevelXp);
@@ -309,7 +282,6 @@ namespace LevelExtender
             return (int)(pct * 100f);
         }
 
-        /// <summary>Convenience overload using a <see cref="Skill"/>.</summary>
         internal static int ComputeLevelPercent(Skill s)
             => ComputeLevelPercent(
                 s.GetRequiredExperienceForLevel(s.Level - 1),
@@ -317,10 +289,29 @@ namespace LevelExtender
                 s.Experience
             );
 
-        // make icon mapper testable
+        #endregion
+
+#if DEBUG
+        // Debug-only constants and helpers for unit tests
+        internal const int Debug_NameOffsetX = NameOffsetX;
+        internal const int Debug_RightPadding = RightPadding;
+        internal const int Debug_BarRightGap = BarRightGap;
+        internal const int Debug_RowHeight = RowHeight;
+        internal const int Debug_BarTopMargin = BarTopMargin;
+        internal const int Debug_BarHeightPx = BarHeightPx;
+
+        internal static (int start, int end) ComputePageRange(int pageIndex, int rowsPerPage, int count)
+            => (pageIndex * rowsPerPage, Math.Min(pageIndex * rowsPerPage + rowsPerPage, count));
+
+        internal static int ComputeBarWidth(int listLeft, int listRight, int levelTextWidth)
+        {
+            int nameX = listLeft + NameOffsetX;
+            int lvlX = listRight - RightPadding - levelTextWidth;
+            int barMaxRight = lvlX - BarRightGap;
+            return Math.Max(1, barMaxRight - nameX);
+        }
+
         internal static Rectangle Debug_GetIconRectForSkill(int key) => GetIconRectForSkill(key);
 #endif
-
-        #endregion
     }
 }

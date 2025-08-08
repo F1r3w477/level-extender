@@ -28,7 +28,7 @@ namespace LevelExtender.Tests
 
         private Skill NewSkill(string name, int xp)
             => new Skill(_mod, name, xp, xpModifier: 1.0, xpTable: new List<int>(_mod.DefaultRequiredXp), categories: Array.Empty<int>());
-
+#if DEBUG
         [Test]
         public void ComputePageRange_BasicAndEdges()
         {
@@ -64,6 +64,7 @@ namespace LevelExtender.Tests
 
             Assert.That(nameX + barWidth, Is.LessThanOrEqualTo(barMaxRight));
         }
+#endif
 
         [Test]
         public void ComputeLevelProgress_MatchesExpectedMath()
@@ -105,7 +106,7 @@ namespace LevelExtender.Tests
             Assert.That(bp.need, Is.EqualTo(770 - 380)); // 390
             Assert.That(bp.pct, Is.EqualTo(0f));
         }
-
+#if DEBUG
         [Test]
         public void GetIconRectForSkill_KnownVanillaKeys()
         {
@@ -118,5 +119,6 @@ namespace LevelExtender.Tests
             // Unknown -> default
             Assert.That(SkillsMenu.Debug_GetIconRectForSkill(999), Is.EqualTo(new Rectangle(50, 428, 10, 10)));
         }
+#endif
     }
 }
