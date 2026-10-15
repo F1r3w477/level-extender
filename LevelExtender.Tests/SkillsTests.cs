@@ -42,7 +42,7 @@ namespace LevelExtender.Tests
         [Test]
         public void Ctor_SetsNameKeyExperienceAndLevel_FromCurrentXp()
         {
-            var expectedKey = _mod.Skills.Count; // 0 initially
+            var expectedKey = 5; // Custom skills always follow the five vanilla indexes.
 
             var s = NewSkill(name: "Alchemy", currentXp: 0, xpTable: new List<int>(_mod.DefaultRequiredXp));
 
@@ -117,6 +117,17 @@ namespace LevelExtender.Tests
         }
 
         [Test]
+        public void ChangingExperienceModifier_RebuildsGeneratedThresholds()
+        {
+            var skill = NewSkill(name: "Curve", xpModifier: 1.0);
+            int original = skill.GetRequiredExperienceForLevel(10);
+
+            skill.ExperienceModifier = 2.0;
+
+            Assert.That(skill.GetRequiredExperienceForLevel(10), Is.GreaterThan(original));
+        }
+
+        [Test]
         public void BinarySearch_Edges_Level0BelowFirstThreshold_LevelIncrementsAtExactThresholds()
         {
             var s = NewSkill(currentXp: 0, xpTable: new List<int>(_mod.DefaultRequiredXp));
@@ -132,24 +143,24 @@ namespace LevelExtender.Tests
         }
 
         [Test]
-        public void IsVanillaSkill_DependsOnKey()
+        public void IsVanillaSkill_IsBasedOnNameAndCustomKeysFollowVanillaKeys()
         {
-            // Create 5 skills and add them to the mod so Keys increment 0..4
-            var created = new List<Skill>();
-            for (int i = 0; i < 5; i++)
-            {
-                var s = NewSkill(name: $"Vanilla{i}", xpTable: new List<int>(_mod.DefaultRequiredXp));
-                created.Add(s);
-                _mod._skills.Add(s); // Make count visible to the next Skill's Key computation
-            }
-
-            Assert.That(created[4].Key, Is.EqualTo(4));
-            Assert.That(created[4].IsVanillaSkill, Is.True);
-
-            // Next one gets Key == 5 -> non-vanilla
             var custom = NewSkill(name: "Custom", xpTable: new List<int>(_mod.DefaultRequiredXp));
             Assert.That(custom.Key, Is.EqualTo(5));
             Assert.That(custom.IsVanillaSkill, Is.False);
+
+            _mod._skills.Add(custom);
+
+            var farming = NewSkill(name: "farming", xpTable: new List<int>(_mod.DefaultRequiredXp));
+            Assert.That(farming.Name, Is.EqualTo("Farming"));
+            Assert.That(farming.Key, Is.EqualTo(0));
+            Assert.That(farming.IsVanillaSkill, Is.True);
+
+            _mod._skills.Add(farming);
+
+            var combat = NewSkill(name: "Combat", xpTable: new List<int>(_mod.DefaultRequiredXp));
+            Assert.That(combat.Key, Is.EqualTo(4));
+            Assert.That(combat.IsVanillaSkill, Is.True);
         }
 
         [Test]
@@ -176,6 +187,27 @@ namespace LevelExtender.Tests
         }
 
         [Test]
+        public void AddExperience_ClampsAtMaximumIntegerExperience()
+        {
+            var s = NewSkill(currentXp: int.MaxValue - 1, xpTable: new List<int>(_mod.DefaultRequiredXp));
+
+            s.AddExperience(10);
+
+            Assert.That(s.Experience, Is.EqualTo(int.MaxValue));
+        }
+
+        [Test]
+        public void Categories_AreCopiedFromCaller()
+        {
+            var categories = new[] { -4, -15 };
+            var skill = NewSkill(categories: categories, xpTable: new List<int>(_mod.DefaultRequiredXp));
+
+            categories[0] = 999;
+
+            CollectionAssert.AreEqual(new[] { -4, -15 }, skill.Categories);
+        }
+
+        [Test]
         public void Experience_SetHighTriggersTableGrowth_AndLevelsAdvance()
         {
             var s = NewSkill(currentXp: 0, xpTable: new List<int>(_mod.DefaultRequiredXp));
@@ -187,6 +219,17 @@ namespace LevelExtender.Tests
 
             Assert.That(s.ExperienceTable.Count, Is.GreaterThan(initialCount)); // >= 151
             Assert.That(s.Level, Is.GreaterThan(150));
+        }
+
+        [Test]
+        public void SettingLevel300_IsCappedAt200()
+        {
+            var s = NewSkill(currentXp: 0, xpTable: new List<int>(_mod.DefaultRequiredXp));
+
+            s.Level = 300;
+
+            Assert.That(s.Level, Is.EqualTo(200));
+            Assert.That(s.Experience, Is.GreaterThan(0));
         }
 
         [Test]

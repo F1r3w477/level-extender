@@ -80,7 +80,7 @@ namespace LevelExtender
 
         public void SetExperienceModifier(string command, string[] args)
         {
-            if (args.Length < 2 || !double.TryParse(args[1], out double modifier) || modifier <= 0)
+            if (args.Length < 2 || !double.TryParse(args[1], out double modifier) || !double.IsFinite(modifier) || modifier <= 0)
             {
                 this._monitor?.Log("Command failed. Usage: le_xp_modifier <skillname> <modifier>.", LogLevel.Error);
                 return;
@@ -96,7 +96,7 @@ namespace LevelExtender
 
         public void ShowSkillXpTable(string command, string[] args)
         {
-            int columns = _config.TableColumns;
+            int columns = Math.Max(1, _config.TableColumns);
             if (args.Length < 1)
             {
                 this._monitor?.Log("Command failed. Usage: le_xp_table <skillname>.", LogLevel.Error);

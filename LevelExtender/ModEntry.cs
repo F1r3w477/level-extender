@@ -5,6 +5,7 @@ using StardewModdingAPI.Events;
 using StardewValley;
 using StardewValley.Menus;
 using StardewValley.Monsters;
+using StardewValley.Locations;
 using StardewValley.GameData.Objects;
 using System;
 using System.Collections.Generic;
@@ -16,7 +17,12 @@ using Timer = System.Timers.Timer;
 namespace LevelExtender
 {
     /// <summary>A simple data class for robust JSON serialization of skill data.</summary>
-    public record SkillData(string Name, int Experience, double ExperienceModifier);
+    public record SkillData(
+        string Name,
+        int Experience,
+        double ExperienceModifier,
+        List<int> ExperienceTable = null,
+        int[] Categories = null);
 
     public class ModEntry : Mod
     {
@@ -38,10 +44,13 @@ namespace LevelExtender
 
         // Game state variables
         private bool _isFishingBobberLogicActive;
+        private int _originalBobberBarHeight;
+        private float _originalBobberBarPos;
         private bool _isInitialToolUse;
         private float _originalStamina;
         private bool _disableMonsterSpawningThisSession;
         private int _totalMonstersSpawned;
+        private readonly HashSet<Monster> _spawnedMonsters = new();
 
         // UI Constants for the experience bar
         private const int BarStartX = 8;
@@ -82,7 +91,8 @@ namespace LevelExtender
         {
             Instance = this;
             _events = new LEEvents();
-            _config = this.Helper.ReadConfig<ModConfig>();
+            _config = this.Helper.ReadConfig<ModConfig>() ?? new ModConfig();
+            _config.Normalize(this.Monitor);
 
             // Event Subscriptions
             helper.Events.GameLoop.SaveLoaded += this.OnSaveLoaded;
@@ -175,28 +185,58 @@ namespace LevelExtender
             }
             else if (parsedJson is JArray newFormatArray)
             {
-                skillDataList = newFormatArray.ToObject<List<SkillData>>();
+                try
+                {
+                    skillDataList = newFormatArray.ToObject<List<SkillData>>();
+                }
+                catch (Exception ex)
+                {
+                    this.Monitor?.Log($"Could not deserialize the current skills data format. Skill progress will be reset for this session. Error: {ex.Message}", LogLevel.Error);
+                }
             }
 
-            skillDataList ??= new List<SkillData>();
-
-            // --- Skill Initialization ---
-            var loadedSkillNames = new HashSet<string>(skillDataList.Select(s => s.Name));
-
-            foreach (var skillData in skillDataList)
-            {
-                var skill = new Skill(this, skillData.Name, skillData.Experience, skillData.ExperienceModifier, new List<int>(this.DefaultRequiredXp), GetCategoriesForSkill(skillData.Name));
-                _skills.Add(skill);
-            }
+            skillDataList = skillDataList?
+                .Where(s => s != null && !string.IsNullOrWhiteSpace(s.Name))
+                .Select(s => new SkillData(
+                    s.Name.Trim(),
+                    Math.Max(0, s.Experience),
+                    double.IsFinite(s.ExperienceModifier) && s.ExperienceModifier > 0 ? s.ExperienceModifier : 1.0,
+                    s.ExperienceTable,
+                    s.Categories))
+                .ToList()
+                ?? new List<SkillData>();
 
             string[] vanillaSkillNames = { "Farming", "Fishing", "Foraging", "Mining", "Combat" };
+
+            // Always initialize vanilla skills in their fixed game order. Saved custom skills
+            // must not be able to shift the indexes used by Farmer.experiencePoints.
+            var savedSkillsByName = skillDataList
+                .Where(s => !string.IsNullOrWhiteSpace(s.Name))
+                .GroupBy(s => s.Name, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
+
             for (int i = 0; i < vanillaSkillNames.Length; i++)
             {
-                if (!loadedSkillNames.Contains(vanillaSkillNames[i]))
-                {
-                    var skill = new Skill(this, vanillaSkillNames[i], Game1.player.experiencePoints[i], 1.0, new List<int>(this.DefaultRequiredXp), GetCategoriesForSkill(vanillaSkillNames[i]));
-                    _skills.Add(skill);
-                }
+                if (savedSkillsByName.TryGetValue(vanillaSkillNames[i], out SkillData savedSkill))
+                    _skills.Add(new Skill(this, vanillaSkillNames[i], savedSkill.Experience, savedSkill.ExperienceModifier, new List<int>(this.DefaultRequiredXp), GetCategoriesForSkill(vanillaSkillNames[i])));
+                else
+                    _skills.Add(new Skill(this, vanillaSkillNames[i], Game1.player.experiencePoints[i], 1.0, new List<int>(this.DefaultRequiredXp), GetCategoriesForSkill(vanillaSkillNames[i])));
+            }
+
+            // Custom skills are loaded after vanilla skills so they receive stable custom keys.
+            foreach (var skillData in skillDataList)
+            {
+                if (Skill.IsVanillaSkillName(skillData.Name) || string.IsNullOrWhiteSpace(skillData.Name))
+                    continue;
+
+                var skill = new Skill(
+                    this,
+                    skillData.Name,
+                    skillData.Experience,
+                    skillData.ExperienceModifier,
+                    skillData.ExperienceTable ?? new List<int>(this.DefaultRequiredXp),
+                    skillData.Categories ?? GetCategoriesForSkill(skillData.Name));
+                _skills.Add(skill);
             }
 
             this.Monitor?.Log($"Level Extender: Loaded {_skills.Count} skills.", LogLevel.Info);
@@ -215,7 +255,12 @@ namespace LevelExtender
         {
             // Save the skill data to its own JSON file
             var skillsToSave = _skills
-                .Select(s => new SkillData(s.Name, s.Experience, s.ExperienceModifier))
+                .Select(s => new SkillData(
+                    s.Name,
+                    s.Experience,
+                    s.ExperienceModifier,
+                    s.ExperienceTable.ToList(),
+                    s.Categories.ToArray()))
                 .ToList();
             this.Helper.Data.WriteJsonFile($"data/{Constants.SaveFolderName}.json", skillsToSave);
 
@@ -237,22 +282,30 @@ namespace LevelExtender
 
         private void OnReturnedToTitle(object sender, ReturnedToTitleEventArgs e)
         {
-            // Unpatch all of this mod's Harmony patches.
-            _harmony.UnpatchAll(this.ModManifest.UniqueID);
-
             // Reset all state when returning to the main menu
             _skills.Clear();
             _xpBars.Clear();
             _config = new ModConfig();
             _isFishingBobberLogicActive = false;
+            _originalBobberBarHeight = 0;
+            _originalBobberBarPos = 0;
+            _isInitialToolUse = false;
+            _originalStamina = 0;
+            _lastRenderTime = default;
             _disableMonsterSpawningThisSession = false;
             _totalMonstersSpawned = 0;
+            _cachedObjectData = null;
+            _cachedObjectKeys = null;
+            _spawnedMonsters.Clear();
         }
 
         private void OnDayStarted(object sender, DayStartedEventArgs e)
         {
             _disableMonsterSpawningThisSession = false;
-            ApplyDailyFarmGrowth();
+            // Farm crops are authoritative on the host. Running this on farmhands too
+            // could apply separate random growth rolls to the same world state.
+            if (Context.IsMainPlayer && _config.EnableDailyFarmGrowth)
+                ApplyDailyFarmGrowth();
         }
 
         private void OnUpdateTicked(object sender, UpdateTickedEventArgs e)
@@ -333,17 +386,24 @@ namespace LevelExtender
                 {
                     if (skill.Categories.Contains(item.Category) && ShouldDuplicateItem(skill))
                     {
+                        // Machine output items can remain referenced by the machine after this
+                        // method returns. Never mutate that object: doing so makes the next
+                        // collection start with the already-duplicated stack.
                         int originalStack = item.Stack;
-                        item.Stack++;
+                        // The successful test in the if condition is the first extra item.
+                        int extraItems = 1;
                         while (ShouldDuplicateItem(skill))
-                        {
-                            item.Stack++;
-                        }
+                            extraItems++;
 
-                        int newItems = item.Stack - originalStack;
+                        if (extraItems > 0)
+                        {
+                            Item inventoryItem = item.getOne();
+                            inventoryItem.Stack = originalStack + extraItems;
+                            item = inventoryItem;
+                        }
                         if (Instance._config.DrawExtraItemNotifications && item.salePrice() >= Instance._config.MinItemPriceForNotifications)
                         {
-                             string message = $"Your {skill.Name} skill granted you {newItems} extra {item.DisplayName}!";
+                             string message = $"Your {skill.Name} skill granted you {extraItems} extra {item.DisplayName}!";
                              Game1.addHUDMessage(new HUDMessage(message, HUDMessage.achievement_type));
                         }
                         return;
@@ -380,15 +440,22 @@ namespace LevelExtender
             double instantGrowthChance = farmingSkill.Level * 0.0002;
             double phaseSkipChance = farmingSkill.Level * 0.001;
 
-            var farm = Game1.getFarm();
-            foreach (var dirt in farm.terrainFeatures.Values.OfType<StardewValley.TerrainFeatures.HoeDirt>())
+            // A map replacement keeps the location as a Farm, so enumerate Farm instances
+            // rather than relying only on the vanilla map returned by getFarm(). This also
+            // supports mods which add an additional Farm location without processing every
+            // location containing HoeDirt (such as the greenhouse or Ginger Island).
+            foreach (var farm in Game1.locations.OfType<Farm>())
             {
-                if (dirt.crop != null)
+                foreach (var dirt in farm.terrainFeatures.Values.OfType<StardewValley
+                    .TerrainFeatures.HoeDirt>())
                 {
-                    if (_random.NextDouble() < instantGrowthChance)
-                        dirt.crop.growCompletely();
-                    else if (_random.NextDouble() < phaseSkipChance)
-                        dirt.crop.currentPhase.Value = Math.Min(dirt.crop.currentPhase.Value + 1, dirt.crop.phaseDays.Count - 1);
+                    if (dirt.crop != null)
+                    {
+                        if (_random.NextDouble() < instantGrowthChance)
+                            dirt.crop.growCompletely();
+                        else if (_random.NextDouble() < phaseSkipChance)
+                            dirt.crop.currentPhase.Value = Math.Min(dirt.crop.currentPhase.Value + 1, dirt.crop.phaseDays.Count - 1);
+                    }
                 }
             }
         }
@@ -418,33 +485,26 @@ namespace LevelExtender
                 return;
             }
 
-            // These bounds match vanilla BobberBar's rail area (top and bottom in pixels)
-            const int TrackTop = 68;
-            const int TrackBottom = 568;
-            const int TrackHeight = TrackBottom - TrackTop; // 500px in vanilla
-
             if (!_isFishingBobberLogicActive)
             {
-                // Runs once when the fishing minigame starts
-                var fishingLevel = Game1.player.FishingLevel;
-                int bobberBonus = 0;
-                if (fishingLevel > 99) bobberBonus = 8;
-                else if (fishingLevel > 74) bobberBonus = 6;
-                else if (fishingLevel > 49) bobberBonus = 4;
-                else if (fishingLevel > 24) bobberBonus = 2;
+                // Read vanilla's already-computed value. This includes tackle (including
+                // Cork Bobber), buffs, and any changes made by another mod.
+                _originalBobberBarHeight = this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight").GetValue();
+                _originalBobberBarPos = this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").GetValue();
 
-                int bobberBarSize = 80 + bobberBonus + (fishingLevel * 9);
-
-                // Cap the green bar to 100% of the track height
-                bobberBarSize = Math.Min(bobberBarSize, TrackHeight);
-
-                // Keep the bar fully inside the track (top never above TrackTop)
-                int bobberBarPos = TrackBottom - bobberBarSize;
-                if (bobberBarPos < TrackTop)
-                    bobberBarPos = TrackTop;
-
-                this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight").SetValue(bobberBarSize);
-                this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").SetValue(bobberBarPos);
+                // Extend the vanilla value by four pixels per level above 10. Add it to
+                // vanilla's value so Cork Bobber and other equipment adjustments are not
+                // discarded, but keep the bar within the full 568px fishing rectangle.
+                int fishingLevel = Game1.player.FishingLevel;
+                int extension = Math.Max(0, fishingLevel - 10) * 4;
+                if (extension > 0)
+                {
+                    const int maxBobberBarHeight = 568;
+                    int targetHeight = Math.Min(_originalBobberBarHeight + extension, maxBobberBarHeight);
+                    int appliedExtension = targetHeight - _originalBobberBarHeight;
+                    this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight").SetValue(targetHeight);
+                    this.Helper.Reflection.GetField<float>(bar, "bobberBarPos").SetValue(_originalBobberBarPos - appliedExtension);
+                }
 
                 _isFishingBobberLogicActive = true;
             }
@@ -458,20 +518,9 @@ namespace LevelExtender
                     this.Helper.Reflection.GetField<float>(bar, "distanceFromCatching").SetValue(dist + ((Game1.player.FishingLevel - 10) / 22000.0f));
                 }
 
-                // Enforce the cap even if something else modifies the height
-                var heightField = this.Helper.Reflection.GetField<int>(bar, "bobberBarHeight");
-                var posField = this.Helper.Reflection.GetField<float>(bar, "bobberBarPos");
-
-                int h = heightField.GetValue();
-                if (h > TrackHeight)
-                {
-                    h = TrackHeight;
-                    int pos = TrackBottom - h;
-                    if (pos < TrackTop) pos = TrackTop;
-
-                    heightField.SetValue(h);
-                    posField.SetValue(pos);
-                }
+                // Do not rewrite the fields every tick. Other mods and vanilla may update
+                // them, and repeatedly restoring our cached geometry would overwrite those
+                // changes.
             }
         }
 
@@ -674,6 +723,7 @@ namespace LevelExtender
 
             // Add the fully modified monster to the world.
             Game1.player.currentLocation.characters.Add(monster);
+            _spawnedMonsters.Add(monster);
             _totalMonstersSpawned++;
         }
 

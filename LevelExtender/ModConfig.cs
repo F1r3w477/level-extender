@@ -1,5 +1,6 @@
 ﻿using StardewModdingAPI;
 using StardewModdingAPI.Utilities;
+using System;
 
 namespace LevelExtender
 {
@@ -18,6 +19,12 @@ namespace LevelExtender
         /// If true, shows a notification when a skill grants you extra items.
         /// </summary>
         public bool DrawExtraItemNotifications { get; set; } = true;
+
+        /// <summary>
+        /// If true, applies Level Extender's optional random crop growth boosts at day start.
+        /// Enabled by default because this is an advertised Level Extender feature.
+        /// </summary>
+        public bool EnableDailyFarmGrowth { get; set; } = true;
 
         /// <summary>
         /// The minimum sale price an item must have to trigger an "extra item" notification.
@@ -60,6 +67,42 @@ namespace LevelExtender
         {
             // Default: LeftShift + K (combo)
             OpenSkillsMenu = new KeybindList(new Keybind(SButton.LeftShift, SButton.K));
+        }
+
+        internal void Normalize(IMonitor monitor)
+        {
+            if (MinItemPriceForNotifications < 0)
+            {
+                monitor?.Log("MinItemPriceForNotifications cannot be negative; using 0.", LogLevel.Warn);
+                MinItemPriceForNotifications = 0;
+            }
+
+            if (!double.IsFinite(LevelingCurveBaseExperience) || LevelingCurveBaseExperience <= 0)
+            {
+                monitor?.Log("LevelingCurveBaseExperience must be positive; using 7800.", LogLevel.Warn);
+                LevelingCurveBaseExperience = 7800;
+            }
+
+            if (!double.IsFinite(LevelingCurveGrowthPercent) || LevelingCurveGrowthPercent < 0)
+            {
+                monitor?.Log("LevelingCurveGrowthPercent cannot be negative; using 0.", LogLevel.Warn);
+                LevelingCurveGrowthPercent = 0;
+            }
+
+            if (TableColumns < 1)
+            {
+                monitor?.Log("TableColumns must be at least 1; using 1.", LogLevel.Warn);
+                TableColumns = 1;
+            }
+
+            if (!double.IsFinite(BaseSpawnChance))
+                BaseSpawnChance = 0;
+            if (!double.IsFinite(SpawnChancePerLevel))
+                SpawnChancePerLevel = 0;
+
+            BaseSpawnChance = Math.Clamp(BaseSpawnChance, 0, 1);
+            SpawnChancePerLevel = Math.Clamp(SpawnChancePerLevel, 0, 1);
+            OpenSkillsMenu ??= new KeybindList(new Keybind(SButton.LeftShift, SButton.K));
         }
     }
 }

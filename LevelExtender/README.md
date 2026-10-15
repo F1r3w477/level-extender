@@ -11,7 +11,7 @@ This mod was originally created by unidarkshin. It is now primarily maintained b
 
 ## Features
 
-* **Extend All 5 Skills:** Go beyond level 10 up to level 100 (configurable).
+* **Extend All 5 Skills:** Go beyond level 10 with a configurable XP curve.
 * **On-Screen XP Bars:** Optional UI element that appears when you gain experience to track your progress.
 * **Item Duplication:** Gain a chance to acquire extra items based on your skill level (e.g., duplicate fish, ore, or foraged goods).
 * **Enhanced Fishing:** The fishing bobber bar becomes larger at higher skill levels, making fishing easier.
@@ -22,19 +22,20 @@ This mod was originally created by unidarkshin. It is now primarily maintained b
 
 | Command         | Description                                                                                               | Example                          |
 | --------------- | --------------------------------------------------------------------------------------------------------- | -------------------------------- |
-| `xp`            | Displays the XP table for your current skill levels.                                                      | `xp`                             |
-| `lev`           | Sets a skill to a specific level.                                                                         | `lev Fishing 25`                 |
-| `set_xp`        | Sets the raw experience points for a skill.                                                               | `set_xp Mining 20000`            |
-| `draw_bars`     | Toggles the on-screen XP bars.                                                                            | `draw_bars false`                |
-| `wm_toggle`     | Toggles the overworld monster spawning feature.                                                           | `wm_toggle`                      |
-| `xp_m`          | Changes the XP modifier for a skill. Must restart game.                                                   | `xp_m Farming 1.5`               |
-| `spawn_modifier`| Forcefully changes the monster spawn rate. Use `-1` to disable.                                           | `spawn_modifier 0.5`             |
-| `draw_ein`      | Toggles the "extra item notification" pop-ups.                                                            | `draw_ein false`                 |
-| `min_ein_price` | Sets the minimum gold value for an item to show a notification.                                           | `min_ein_price 100`              |
+| `le_xp`                    | Shows a summary of current skill levels and XP.                                      | `le_xp`                              |
+| `le_setlevel`              | Sets a skill to a specific level.                                                    | `le_setlevel Fishing 25`             |
+| `le_setxp`                 | Sets the raw experience points for a skill.                                          | `le_setxp Mining 20000`              |
+| `le_toggle_xpbars`         | Toggles the on-screen XP bars.                                                       | `le_toggle_xpbars`                   |
+| `le_toggle_monsters`       | Toggles per-save wilderness monster spawning.                                        | `le_toggle_monsters`                 |
+| `le_xp_modifier`           | Changes the XP modifier for a skill.                                                 | `le_xp_modifier Farming 1.5`         |
+| `le_xp_table`              | Displays the full XP table for a skill.                                              | `le_xp_table Farming`                |
+| `le_toggle_notifications`  | Toggles extra-item notifications.                                                   | `le_toggle_notifications`            |
+| `le_min_notification_price`| Sets the minimum item price for an extra-item notification.                          | `le_min_notification_price 100`      |
+| `le_skills`                | Opens the Level Extender skills menu.                                                | `le_skills`                          |
 
 ## Installation
 
 1.  Install the latest version of [SMAPI](https://smapi.io).
-2.  Download the latest version of this mod from the [Releases page](https://github.com/F1r3w477/Level-Extender/releases).
+2.  Download the latest version of this mod from the [Releases page](https://github.com/Varrxion/level-extender/releases).
 3.  Unzip the downloaded file into your `Stardew Valley/Mods` folder.
 4.  Run the game using SMAPI!

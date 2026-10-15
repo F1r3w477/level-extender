@@ -120,5 +120,33 @@ namespace LevelExtender.Tests
 
             Assert.That(fastL25, Is.GreaterThan(slowL25));
         }
+
+        [Test]
+        public void Normalize_ClampsInvalidValues()
+        {
+            var config = new ModConfig
+            {
+                MinItemPriceForNotifications = -1,
+                LevelingCurveBaseExperience = 0,
+                LevelingCurveGrowthPercent = -5,
+                TableColumns = 0,
+                BaseSpawnChance = 2,
+                SpawnChancePerLevel = double.NaN,
+                OpenSkillsMenu = null
+            };
+
+            config.Normalize(null);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(config.MinItemPriceForNotifications, Is.EqualTo(0));
+                Assert.That(config.LevelingCurveBaseExperience, Is.EqualTo(7800));
+                Assert.That(config.LevelingCurveGrowthPercent, Is.EqualTo(0));
+                Assert.That(config.TableColumns, Is.EqualTo(1));
+                Assert.That(config.BaseSpawnChance, Is.EqualTo(1));
+                Assert.That(config.SpawnChancePerLevel, Is.EqualTo(0));
+                Assert.That(config.OpenSkillsMenu, Is.Not.Null);
+            });
+        }
     }
 }

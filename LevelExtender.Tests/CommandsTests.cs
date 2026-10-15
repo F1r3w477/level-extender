@@ -192,6 +192,15 @@ namespace LevelExtender.Tests
         }
 
         [Test]
+        public void ShowSkillXpTable_ZeroColumns_DoesNotHang()
+        {
+            _config.TableColumns = 0;
+
+            Assert.DoesNotThrow(() => _cmd.ShowSkillXpTable("le_xp_table", new[] { "Farming" }));
+            Assert.That(LastLog().Level, Is.EqualTo(LogLevel.Info));
+        }
+
+        [Test]
         public void ToggleExtraItemNotifications_TogglesConfigAndLogs()
         {
             var initial = _config.DrawExtraItemNotifications;
